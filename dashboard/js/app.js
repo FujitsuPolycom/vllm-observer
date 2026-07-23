@@ -177,6 +177,8 @@ async function selectWorkload(name) {
   element('exportReport').disabled = true;
   element('clearPin').disabled = true;
   element('logFocus').textContent = 'Live tail';
+  element('pinNotice').hidden = true;
+  element('logs').classList.remove('is-focused');
   renderInstances(state.instances, state.selected);
   if (!name) return;
   try {
@@ -255,6 +257,8 @@ async function selectTimelinePoint(timestamp) {
   state.focusTimestamp = timestamp;
   element('exportReport').disabled = false;
   element('clearPin').disabled = false;
+  element('pinNoticeText').textContent = formatTime(timestamp, true);
+  element('pinNotice').hidden = false;
   element('logFocus').textContent = 'Loading logs near ' + formatTime(timestamp, true);
   drawCharts();
   try {
@@ -262,9 +266,10 @@ async function selectTimelinePoint(timestamp) {
     renderLogs(payload);
     element('logFocus').textContent = 'Point ' + formatTime(timestamp, true) +
       ' · archive ±' + payload.archive_delta_seconds + 's';
-    element('logs').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    element('logs').classList.add('is-focused');
   } catch (error) {
     element('logFocus').textContent = error.message;
+    element('logs').classList.remove('is-focused');
   }
 }
 
@@ -315,8 +320,13 @@ element('clearPin').addEventListener('click', () => {
   element('clearPin').disabled = true;
   element('exportReport').disabled = true;
   element('logFocus').textContent = 'Live tail';
+  element('pinNotice').hidden = true;
+  element('logs').classList.remove('is-focused');
   drawCharts();
   loadLogs();
+});
+element('pinNoticeLogs').addEventListener('click', () => {
+  element('logs').scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 element('toggleCrosshair').addEventListener('click', event => {
   state.crosshair = !state.crosshair;
