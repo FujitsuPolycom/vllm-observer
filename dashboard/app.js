@@ -1,4 +1,4 @@
-const state = { instances: [], selected: '', paused: false, inventorySignature: '', metricSignature: '', values: {}, live: {} };
+const state = { instances: [], selected: '', paused: false, inventorySignature: '', metricSignature: '', values: {}, live: {}, liveHistory: [] };
 const $ = id => document.getElementById(id);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 const labels = { prompt_tokens_per_second: 'Prefill / prompt', generation_tokens_per_second: 'Decode / generation', gpu_kv_cache_percent: 'GPU KV cache', prefix_cache_hit_percent: 'Prefix cache hit', external_prefix_cache_hit_percent: 'External prefix hit', speculative_mean_acceptance_length: 'MTP acceptance length', speculative_depth: 'MTP speculative depth', accepted_tokens_per_second: 'Accepted throughput', drafted_tokens_per_second: 'Drafted throughput', draft_acceptance_percent: 'Draft acceptance', lmcache_total_tokens: 'LMCache total', lmcache_computed_tokens: 'LMCache computed', lmcache_hit_tokens: 'LMCache hit', lmcache_load_tokens: 'LMCache load', cache_transfer_chunks: 'CKV / cache chunks', running_requests: 'Running requests', waiting_requests: 'Queued requests' };
@@ -122,6 +122,13 @@ async function loadLogs() {
     }
 }
 
+function recordLive(live) {
+    if (!live || !live.available) return;
+    const sample = { time: Date.now() };
+    ['fresh_prefill_tokens_per_second', 'cached_ingest_tokens_per_second', 'decode_tokens_per_second'].forEach(key => { if (live[key] !== undefined) sample[key] = Number(live[key]); });
+    if (Object.keys(sample).length > 1) { state.liveHistory = [...state.liveHistory, sample].slice(-90); renderLiveGraph(state.liveHistory, Number($('smoothness').value)); }
+}
+
 async function loadLive() {
     if (state.paused || !state.selected) return;
     try {
@@ -129,6 +136,7 @@ async function loadLive() {
         const data = await response.json();
         if (!response.ok) throw Error(data.error || 'live metrics unavailable');
         state.live = data.live_metrics || {};
+        recordLive(state.live);
         renderMetrics(state.values, state.live);
     } catch (error) {
         // The slower log poll remains the fallback source when Prometheus is unavailable.
@@ -139,6 +147,7 @@ $('instance').addEventListener('change', event => { state.selected = event.targe
 $('pause').addEventListener('click', () => { state.paused = !state.paused; $('pause').textContent = state.paused ? 'Resume' : 'Pause'; $('pause').classList.toggle('active', state.paused); if (!state.paused) { loadInstances(); loadLogs(); } });
 $('styleToggle').addEventListener('click', () => { document.body.classList.toggle('minimal'); $('styleToggle').textContent = document.body.classList.contains('minimal') ? 'Rich view' : 'Minimal view'; });
 $('compose').addEventListener('click', async () => { const suffix = state.selected ? `?instance=${encodeURIComponent(state.selected)}` : ''; const response = await fetch(`/api/compose${suffix}`); if (!response.ok) { $('refresh').textContent = 'compose build failed'; return; } const blob = await response.blob(); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `${state.selected || 'vllm-observer'}.compose.yml`; link.click(); URL.revokeObjectURL(link.href); });
+$('smoothness').addEventListener('input', event => { renderLiveGraph(state.liveHistory, Number(event.target.value)); });
 loadInstances().then(loadLogs);
 setInterval(() => { if (!document.hidden) loadLogs(); }, 3000);
 setInterval(() => { if (!document.hidden) loadLive(); }, 1000);
