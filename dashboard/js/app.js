@@ -15,7 +15,95 @@ const state = {
   history: [],
   paused: false,
   historyOffset: 0,
+  chartOrder: loadChartOrder(),
 };
+
+function loadChartOrder() {
+  const defaultOrder = ['throughput', 'decode', 'cache', 'requests'];
+  try {
+    const saved = JSON.parse(localStorage.getItem('vllm-observer:chart-order') || 'null');
+    return Array.isArray(saved) && saved.length === defaultOrder.length && saved.every(name => defaultOrder.includes(name))
+      ? saved
+      : defaultOrder;
+  } catch (error) {
+    return defaultOrder;
+  }
+}
+
+function saveChartOrder() {
+  try { localStorage.setItem('vllm-observer:chart-order', JSON.stringify(state.chartOrder)); } catch (error) { /* optional preference */ }
+}
+
+function arrangeCharts() {
+  const grid = document.querySelector('.chart-grid');
+  const panels = new Map([...grid.querySelectorAll('[data-chart-panel]')].map(panel => [panel.dataset.chartPanel, panel]));
+  state.chartOrder.forEach(name => { if (panels.has(name)) grid.appendChild(panels.get(name)); });
+}
+
+function moveChart(name, direction) {
+  const index = state.chartOrder.indexOf(name);
+  const next = index + direction;
+  if (index < 0 || next < 0 || next >= state.chartOrder.length) return;
+  [state.chartOrder[index], state.chartOrder[next]] = [state.chartOrder[next], state.chartOrder[index]];
+  arrangeCharts();
+  saveChartOrder();
+  Object.values(charts).forEach(chart => chart.draw());
+}
+
+function expandChart(panel, button) {
+  const expanded = panel.classList.toggle('is-expanded');
+  document.body.classList.toggle('chart-expanded', expanded);
+  button.textContent = expanded ? 'Close' : 'Expand';
+  button.setAttribute('aria-expanded', String(expanded));
+  if (expanded) panel.querySelector('canvas')?.focus?.();
+  Object.values(charts).forEach(chart => chart.draw());
+}
+
+function setupChartInteractions() {
+  arrangeCharts();
+  const grid = document.querySelector('.chart-grid');
+  let draggedName = '';
+  grid.querySelectorAll('[data-chart-panel]').forEach(panel => {
+    const name = panel.dataset.chartPanel;
+    panel.querySelectorAll('.chart-move').forEach(button => button.addEventListener('click', () => moveChart(name, button.dataset.direction === 'up' ? -1 : 1)));
+    panel.querySelector('.chart-expand').addEventListener('click', event => expandChart(panel, event.currentTarget));
+    panel.querySelector('.drag-handle').addEventListener('dragstart', event => {
+      draggedName = name;
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', name);
+      panel.classList.add('is-dragging');
+    });
+    panel.querySelector('.drag-handle').addEventListener('dragend', () => {
+      draggedName = '';
+      panel.classList.remove('is-dragging');
+      grid.querySelectorAll('.is-drop-target').forEach(target => target.classList.remove('is-drop-target'));
+    });
+    panel.addEventListener('dragover', event => {
+      if (!draggedName || draggedName === name) return;
+      event.preventDefault();
+      panel.classList.add('is-drop-target');
+    });
+    panel.addEventListener('dragleave', () => panel.classList.remove('is-drop-target'));
+    panel.addEventListener('drop', event => {
+      event.preventDefault();
+      panel.classList.remove('is-drop-target');
+      const source = draggedName || event.dataTransfer.getData('text/plain');
+      const from = state.chartOrder.indexOf(source);
+      const to = state.chartOrder.indexOf(name);
+      if (from < 0 || to < 0 || from === to) return;
+      state.chartOrder.splice(from, 1);
+      state.chartOrder.splice(to, 0, source);
+      arrangeCharts();
+      saveChartOrder();
+      Object.values(charts).forEach(chart => chart.draw());
+    });
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key !== 'Escape') return;
+    const expanded = document.querySelector('.chart-panel.is-expanded');
+    if (expanded) expanded.querySelector('.chart-expand').click();
+  });
+}
 
 const charts = {
   throughput: new TimeSeriesChart(element('throughputChart'), [
@@ -152,6 +240,7 @@ element('historyPosition').addEventListener('input', event => {
   drawCharts();
 });
 
+setupChartInteractions();
 await loadInstances();
 await loadSnapshot();
 setInterval(loadSnapshot, 1000);

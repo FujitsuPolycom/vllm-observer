@@ -76,7 +76,7 @@
       </div>
 
       <div class="chart-grid">
-        <article class="chart-panel chart-wide">
+        <article class="chart-panel chart-wide" data-chart-panel="throughput">
           <div class="panel-heading">
             <div><h3>Input and cache pipeline</h3><p>Fresh compute, local prefix reuse, and external KV transfer</p></div>
             <div class="legend">
@@ -84,11 +84,17 @@
               <span style="--series:#de7b32">Local cache</span>
               <span style="--series:#4c72d9">External / LMCache</span>
             </div>
+            <div class="panel-actions">
+              <span class="drag-handle" draggable="true" title="Drag to rearrange this chart" aria-label="Drag to rearrange this chart">Move</span>
+              <button class="chart-move" data-direction="up" type="button" title="Move chart up">Up</button>
+              <button class="chart-move" data-direction="down" type="button" title="Move chart down">Down</button>
+              <button class="chart-expand" type="button">Expand</button>
+            </div>
           </div>
           <canvas id="throughputChart" aria-label="Token throughput history"></canvas>
         </article>
 
-        <article class="chart-panel">
+        <article class="chart-panel" data-chart-panel="decode">
           <div class="panel-heading">
             <div><h3>Decode and MTP</h3><p>Output, drafted tokens, and accepted draft tokens</p></div>
             <div class="legend">
@@ -96,11 +102,17 @@
               <span style="--series:#7d5fc4">Drafted</span>
               <span style="--series:#12a594">Accepted</span>
             </div>
+            <div class="panel-actions">
+              <span class="drag-handle" draggable="true" title="Drag to rearrange this chart" aria-label="Drag to rearrange this chart">Move</span>
+              <button class="chart-move" data-direction="up" type="button" title="Move chart up">Up</button>
+              <button class="chart-move" data-direction="down" type="button" title="Move chart down">Down</button>
+              <button class="chart-expand" type="button">Expand</button>
+            </div>
           </div>
           <canvas id="decodeChart" aria-label="Decode and speculative throughput history"></canvas>
         </article>
 
-        <article class="chart-panel">
+        <article class="chart-panel" data-chart-panel="cache">
           <div class="panel-heading">
             <div><h3>Cache</h3><p>KV occupancy and prefix hit rates</p></div>
             <div class="legend">
@@ -108,16 +120,28 @@
               <span style="--series:#de7b32">Prefix hit</span>
               <span style="--series:#4c72d9">External hit</span>
             </div>
+            <div class="panel-actions">
+              <span class="drag-handle" draggable="true" title="Drag to rearrange this chart" aria-label="Drag to rearrange this chart">Move</span>
+              <button class="chart-move" data-direction="up" type="button" title="Move chart up">Up</button>
+              <button class="chart-move" data-direction="down" type="button" title="Move chart down">Down</button>
+              <button class="chart-expand" type="button">Expand</button>
+            </div>
           </div>
           <canvas id="cacheChart" aria-label="Cache history"></canvas>
         </article>
 
-        <article class="chart-panel">
+        <article class="chart-panel" data-chart-panel="requests">
           <div class="panel-heading">
             <div><h3>Scheduler</h3><p>Running and queued requests</p></div>
             <div class="legend">
               <span style="--series:#12a594">Running</span>
               <span style="--series:#d14f68">Queued</span>
+            </div>
+            <div class="panel-actions">
+              <span class="drag-handle" draggable="true" title="Drag to rearrange this chart" aria-label="Drag to rearrange this chart">Move</span>
+              <button class="chart-move" data-direction="up" type="button" title="Move chart up">Up</button>
+              <button class="chart-move" data-direction="down" type="button" title="Move chart down">Down</button>
+              <button class="chart-expand" type="button">Expand</button>
             </div>
           </div>
           <canvas id="requestChart" aria-label="Request scheduler history"></canvas>
