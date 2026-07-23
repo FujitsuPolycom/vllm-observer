@@ -168,12 +168,38 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .timeline-control output { color: var(--muted); font: 11px ui-monospace, monospace; text-align: right; }
 .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .chart-panel {
+  position: relative;
   min-width: 0;
   border: 1px solid var(--line);
   border-radius: 6px;
   background: var(--panel);
   box-shadow: var(--shadow);
 }
+.chart-panel.is-dragging { opacity: .45; }
+.chart-panel.is-drop-target { outline: 3px dashed var(--accent); outline-offset: 4px; }
+.chart-panel.is-expanded {
+  position: fixed;
+  z-index: 40;
+  inset: 24px;
+  overflow: auto;
+  box-shadow: 0 24px 80px rgba(22, 42, 43, .28);
+}
+.chart-panel.is-expanded canvas { height: calc(100vh - 180px); min-height: 360px; }
+.panel-actions { display: flex; align-items: center; justify-content: end; gap: 5px; margin-left: auto; }
+.drag-handle, .chart-move, .chart-expand {
+  min-height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0 7px;
+  color: var(--muted);
+  background: var(--panel-alt);
+  font: 10px ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+.drag-handle { display: inline-flex; align-items: center; cursor: grab; user-select: none; }
+.drag-handle:active { cursor: grabbing; }
+.chart-move, .chart-expand { cursor: pointer; }
+.chart-move:hover, .chart-expand:hover { border-color: var(--accent); color: var(--accent-dark); }
+body.chart-expanded { overflow: hidden; }
 .chart-wide { grid-column: 1 / -1; }
 .panel-heading { display: flex; justify-content: space-between; gap: 20px; padding: 14px 16px 8px; }
 .panel-heading p { margin: 4px 0 0; color: var(--muted); font-size: 11px; }
@@ -255,6 +281,9 @@ body.minimal .metric-card, body.minimal .chart-panel { border-radius: 0; }
   .chart-controls { width: 100%; grid-template-columns: 1fr 1fr; }
   .panel-heading { flex-direction: column; }
   .legend { justify-content: start; }
+  .panel-actions { width: 100%; justify-content: start; margin-left: 0; }
+  .chart-panel.is-expanded { inset: 8px; }
+  .chart-panel.is-expanded canvas { height: calc(100vh - 210px); min-height: 300px; }
   canvas, .chart-wide canvas { height: 260px; }
 }
 
