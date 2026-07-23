@@ -117,14 +117,19 @@ export class TimeSeriesChart {
     const rect = this.canvas.getBoundingClientRect();
     const localX = event.clientX - rect.left;
     const localY = event.clientY - rect.top;
+    const tooltipRows = this.options.tooltipRows?.(path => this.valueAt(path, this.hoverTimestamp)) || [];
+    const extraTooltip = tooltipRows.length
+      ? '<div class="chart-tooltip-section"><b>Per-request context</b>' + tooltipRows.map(([label, value, unit]) =>
+        '<span>' + label + ': ' + formatValue(value) + (unit || '') + '</span>').join('') + '</div>'
+      : '';
     this.tooltip.innerHTML = '<strong>' + new Date(this.hoverTimestamp).toLocaleTimeString() + '</strong>' +
       this.series.map(series => {
         const value = this.valueAt(series.path, this.hoverTimestamp);
         return '<span><i style="background:' + series.color + '"></i>' +
           (series.label || series.path) + ': ' + formatValue(value) + (series.unit || '') + '</span>';
-      }).join('');
-    this.tooltip.style.left = Math.min(Math.max(8, localX + 14), Math.max(8, rect.width - 190)) + 'px';
-    this.tooltip.style.top = Math.min(Math.max(8, localY - 18), Math.max(8, rect.height - 110)) + 'px';
+      }).join('') + extraTooltip;
+    this.tooltip.style.left = Math.min(Math.max(8, localX + 14), Math.max(8, rect.width - this.tooltip.offsetWidth - 8)) + 'px';
+    this.tooltip.style.top = Math.min(Math.max(8, localY - 18), Math.max(8, rect.height - this.tooltip.offsetHeight - 8)) + 'px';
     this.tooltip.hidden = false;
     this.draw();
   }

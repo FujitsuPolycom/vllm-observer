@@ -271,6 +271,8 @@ summary small { color: var(--muted); font: 10px ui-monospace, monospace; }
 }
 .chart-tooltip strong { display: block; margin-bottom: 4px; }
 .chart-tooltip span { display: block; white-space: nowrap; }
+.chart-tooltip-section { margin-top: 7px; padding-top: 6px; border-top: 1px solid var(--line); }
+.chart-tooltip-section b { display: block; margin-bottom: 3px; color: var(--accent-dark); font-size: 9px; text-transform: uppercase; }
 .chart-tooltip i { display: inline-block; width: 7px; height: 7px; margin-right: 5px; }
 
 footer {

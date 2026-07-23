@@ -117,7 +117,18 @@ const charts = {
     { path: 'throughput.decode_tps', label: 'Decode', color: '#d14f68', unit: ' tok/s' },
     { path: 'speculative.draft_tps', label: 'Drafted', color: '#7d5fc4', unit: ' tok/s' },
     { path: 'speculative.accepted_tps', label: 'Accepted', color: '#12a594', unit: ' tok/s' },
-  ], { empty: 'Waiting for decode or MTP token changes', onPoint: point => selectTimelinePoint(point.timestamp) }),
+  ], {
+    empty: 'Waiting for decode or MTP token changes',
+    onPoint: point => selectTimelinePoint(point.timestamp),
+    tooltipRows: valueAt => {
+      const running = valueAt('requests.running');
+      const decode = valueAt('throughput.decode_tps');
+      return [
+        ['Running requests', running, ''],
+        ['Decode / request', running > 0 ? decode / running : null, ' tok/s/request'],
+      ];
+    },
+  }),
   cache: new TimeSeriesChart(element('cacheChart'), [
     { path: 'cache.kv_usage_percent', label: 'KV used', color: '#12a594', unit: '%' },
     { path: 'cache.prefix_hit_percent', label: 'Prefix hit', color: '#de7b32', unit: '%' },
