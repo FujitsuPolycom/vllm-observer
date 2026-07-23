@@ -43,7 +43,7 @@ export function renderSnapshot(point) {
   element('lastCollected').textContent = point.timestamp ? new Date(point.timestamp).toLocaleTimeString() : 'Waiting';
 
   const diagnostic = element('diagnostic');
-  diagnostic.className = `diagnostic ${point.status || 'waiting'}`;
+  diagnostic.className = `diagnostic source-status ${point.status || 'waiting'}`;
   if (point.status === 'ok') {
     diagnostic.innerHTML = `<strong>Source verified.</strong> ${escapeHtml(source.expected_model || 'Selected workload')} matches ${escapeHtml(source.observed_models?.join(', ') || 'the endpoint')}. Charts contain only server-sampled Prometheus data.`;
   } else {
