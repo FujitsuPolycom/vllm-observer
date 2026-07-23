@@ -1,6 +1,7 @@
 import unittest
 
 from observer.parser import classify, metrics
+from observer.prometheus import parse, rates
 
 
 SAMPLE = [
@@ -12,6 +13,13 @@ SAMPLE = [
 
 
 class ParserTests(unittest.TestCase):
+    def test_prometheus_counter_delta(self):
+        previous = parse("vllm_prompt_tokens_total 100\nvllm_generation_tokens_total 20")
+        current = parse("vllm_prompt_tokens_total 350\nvllm_generation_tokens_total 80")
+        result = rates(previous, current, 5)
+        self.assertEqual(result["vllm_prompt_tokens_total"], 50)
+        self.assertEqual(result["vllm_generation_tokens_total"], 12)
+
     def test_performance_metrics(self):
         result = metrics(SAMPLE)
         self.assertEqual(result["prompt_tokens_per_second"], 3071.8)

@@ -80,7 +80,7 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/logs":
                 instance = parse_qs(parsed.query).get("instance", [""])[0]
                 lines = collector.logs(instance)
-                return self._send({"instance": instance, "lines": lines, "metrics": metrics(lines), "groups": classify(lines)})
+                return self._send({"instance": instance, "lines": lines, "metrics": metrics(lines), "live_metrics": collector.live_metrics(instance), "groups": classify(lines)})
             if path == "/app.js":
                 return self._file(DASHBOARD / "app.js", "text/javascript; charset=utf-8")
             if path == "/styles.css":

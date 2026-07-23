@@ -57,6 +57,15 @@ Useful environment variables:
 | `VLLM_OBSERVER_CONTAINER_ALLOWLIST` | empty | Comma-separated exact container names |
 | `VLLM_OBSERVER_LOG_TAIL` | `320` | Maximum lines per container/file |
 | `VLLM_OBSERVER_REFRESH_SECONDS` | `3` | Dashboard polling interval |
+| `VLLM_OBSERVER_METRICS_URL` | empty | Prometheus `/metrics` URL for accurate live counter deltas |
+
+For the most accurate live rates, point the observer at the vLLM Prometheus endpoint:
+
+```bash
+VLLM_OBSERVER_METRICS_URL=http://spark-edfd:18006/metrics python3 -m observer.server
+```
+
+The dashboard will use Prometheus when available and show `LIVE · Prometheus counter deltas`. It calculates total ingest, cached ingest, fresh prefill, decode, cache-hit percentage, and queue depth. The logger-derived values remain available as a `LOG SNAPSHOT` fallback.
 
 ## Safety model
 

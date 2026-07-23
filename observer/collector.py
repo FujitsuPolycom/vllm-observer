@@ -6,8 +6,13 @@ import json
 import os
 import re
 import subprocess
+import time
+from urllib.error import URLError
+from urllib.request import Request, urlopen
 from pathlib import Path
 from typing import Any
+
+from .prometheus import parse, rates
 
 
 ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
@@ -26,6 +31,8 @@ class Collector:
         self.docker_enabled = os.getenv("VLLM_OBSERVER_DOCKER", "1").lower() not in {"0", "false", "no"}
         self.allowlist = {x.strip() for x in os.getenv("VLLM_OBSERVER_CONTAINER_ALLOWLIST", "").split(",") if x.strip()}
         self.paths = [Path(x.strip()) for x in os.getenv("VLLM_OBSERVER_LOG_PATHS", "").split(",") if x.strip()]
+        self.metrics_url = os.getenv("VLLM_OBSERVER_METRICS_URL", "").strip()
+        self.metric_state: dict[str, tuple[float, dict[str, float]]] = {}
 
     def _run(self, args: list[str], timeout: int = 8) -> subprocess.CompletedProcess[str]:
         return subprocess.run(args, capture_output=True, text=True, timeout=timeout, check=False)
@@ -122,3 +129,59 @@ class Collector:
         if path and path.is_file():
             return [clean(line) for line in path.read_text(errors="replace").splitlines()[-self.tail:] if line.strip()]
         raise ValueError("unknown instance")
+
+    def _metrics_url_for(self, instance: str) -> str:
+        configured = os.getenv(f"VLLM_OBSERVER_METRICS_URL_{re.sub(r'[^A-Za-z0-9]', '_', instance).upper()}", "").strip()
+        return configured or self.metrics_url
+
+    def live_metrics(self, instance: str) -> dict[str, Any]:
+        """Fetch Prometheus counters and return one-second-style counter deltas."""
+        url = self._metrics_url_for(instance)
+        if not url:
+            return {"available": False, "reason": "configure VLLM_OBSERVER_METRICS_URL"}
+        try:
+            request = Request(url, headers={"Accept": "text/plain"})
+            with urlopen(request, timeout=3) as response:
+                samples = parse(response.read().decode("utf-8", errors="replace"))
+        except (OSError, URLError, TimeoutError, ValueError) as error:
+            return {"available": False, "reason": str(error)}
+        now = time.monotonic()
+        previous = self.metric_state.get(instance)
+        self.metric_state[instance] = (now, samples)
+        if not previous:
+            return {"available": False, "warming": True, "reason": "waiting for second counter sample"}
+        elapsed = now - previous[0]
+        delta = rates(previous[1], samples, elapsed)
+        def value(*names: str) -> float | None:
+            for name in names:
+                if name in delta:
+                    return delta[name]
+            return None
+        prompt = value("vllm_prompt_tokens_total", "vllm:prompt_tokens_total")
+        cached = value("vllm_prompt_tokens_cached_total", "vllm:prompt_tokens_cached_total")
+        generation = value("vllm_generation_tokens_total", "vllm:generation_tokens_total")
+        result: dict[str, Any] = {"available": True, "sample_seconds": round(elapsed, 2), "source": url}
+        if prompt is not None:
+            result["ingest_tokens_per_second"] = prompt
+        if cached is not None:
+            result["cached_ingest_tokens_per_second"] = cached
+        if prompt is not None and cached is not None:
+            result["fresh_prefill_tokens_per_second"] = max(0.0, prompt - cached)
+            result["cache_hit_percent"] = (cached / prompt * 100) if prompt > 0 else 0.0
+        if generation is not None:
+            result["decode_tokens_per_second"] = generation
+        for key, names in {
+            "running_requests": ("vllm_num_requests_running", "vllm:num_requests_running"),
+            "waiting_requests": ("vllm_num_requests_waiting", "vllm:num_requests_waiting"),
+        }.items():
+            for name in names:
+                if name in samples:
+                    result[key] = samples[name]
+                    break
+        computed = value("vllm_request_prefill_kv_computed_tokens_sum")
+        prefill_time = value("vllm_request_prefill_time_seconds_sum")
+        if computed is not None:
+            result["completed_prefill_tokens_per_second"] = computed
+        if computed is not None and prefill_time and prefill_time > 0:
+            result["completed_prefill_tokens_per_second"] = computed / prefill_time
+        return result
