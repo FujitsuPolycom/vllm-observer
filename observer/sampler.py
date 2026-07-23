@@ -21,6 +21,9 @@ class MetricSampler:
         self.collector = collector
         self.interval = max(0.25, float(os.getenv("VLLM_OBSERVER_SAMPLE_SECONDS", "1")))
         self.max_points = max(60, int(os.getenv("VLLM_OBSERVER_HISTORY_POINTS", "3600")))
+        self.analytics_interval = max(10.0, float(os.getenv("VLLM_OBSERVER_ANALYTICS_SAMPLE_SECONDS", "60")))
+        self.analytics_age_seconds = max(3600, int(os.getenv("VLLM_OBSERVER_ANALYTICS_HISTORY_SECONDS", "604800")))
+        self.max_analytics_points = max(60, int(self.analytics_age_seconds / self.analytics_interval) + 1)
         self.log_interval = max(1.0, float(os.getenv("VLLM_OBSERVER_LOG_SAMPLE_SECONDS", "3")))
         default_log_points = int(604800 / self.log_interval) + 1
         self.max_log_points = max(20, int(os.getenv("VLLM_OBSERVER_LOG_HISTORY_POINTS", str(default_log_points))))
@@ -30,10 +33,14 @@ class MetricSampler:
         self.max_log_bytes = max(1_000_000, int(os.getenv("VLLM_OBSERVER_LOG_HISTORY_MAX_BYTES", "50000000")))
         data_dir = os.getenv("VLLM_OBSERVER_DATA_DIR", "").strip()
         self.history_file = Path(data_dir) / "history.json" if data_dir else None
+        self.analytics_file = Path(data_dir) / "analytics-history.json" if data_dir else None
         self.log_history_file = Path(data_dir) / "log-history.json" if data_dir else None
         self._fetch = fetch or self._fetch_url
         self._history: dict[str, deque[dict[str, Any]]] = defaultdict(
             lambda: deque(maxlen=self.max_points)
+        )
+        self._analytics_history: dict[str, deque[dict[str, Any]]] = defaultdict(
+            lambda: deque(maxlen=self.max_analytics_points)
         )
         self._previous: dict[str, tuple[float, list[Sample]]] = {}
         self._status: dict[str, dict[str, Any]] = {}
@@ -133,6 +140,16 @@ class MetricSampler:
         with self._lock:
             self._status[instance] = point
             self._history[instance].append(point)
+            analytics = point.get("request_analytics")
+            if analytics and (
+                not self._analytics_history[instance]
+                or point["timestamp"] - self._analytics_history[instance][-1]["timestamp"]
+                >= self.analytics_interval * 1000
+            ):
+                self._analytics_history[instance].append({
+                    "timestamp": point["timestamp"],
+                    "request_analytics": analytics,
+                })
         return point
 
     def snapshot(self, instance: str) -> dict[str, Any]:
@@ -148,6 +165,12 @@ class MetricSampler:
         bounded = max(1, min(self.max_points, limit))
         with self._lock:
             return list(self._history.get(instance, ()))[-bounded:]
+
+    def analytics_history(self, instance: str, limit: int | None = None) -> list[dict[str, Any]]:
+        bounded = self.max_analytics_points if limit is None else max(1, min(self.max_analytics_points, limit))
+        with self._lock:
+            points = list(self._analytics_history.get(instance, ()))
+            return points[-bounded:]
 
     def logs_at(self, instance: str, timestamp: int | None = None) -> dict[str, Any]:
         """Return the nearest archived log tail and the line nearest the selected point."""
@@ -212,6 +235,9 @@ class MetricSampler:
             "api_version": "v1",
             "sample_seconds": self.interval,
             "history_points": self.max_points,
+            "analytics_sample_seconds": self.analytics_interval,
+            "analytics_history_seconds": self.analytics_age_seconds,
+            "analytics_history_points": self.max_analytics_points,
             "persistence": str(self.history_file) if self.history_file else None,
             "log_sample_seconds": self.log_interval,
             "log_history_seconds": self.max_log_age_seconds,
@@ -242,6 +268,15 @@ class MetricSampler:
                         self._status[name] = points[-1]
             except (OSError, ValueError, TypeError):
                 pass
+        if self.analytics_file and self.analytics_file.is_file():
+            try:
+                payload = json.loads(self.analytics_file.read_text(encoding="utf-8"))
+                cutoff = round(time.time() * 1000) - self.analytics_age_seconds * 1000
+                for name, points in payload.items():
+                    valid = [point for point in points if isinstance(point, dict) and point.get("timestamp", 0) >= cutoff]
+                    self._analytics_history[name].extend(valid[-self.max_analytics_points :])
+            except (OSError, ValueError, TypeError):
+                pass
         if self.log_history_file and self.log_history_file.is_file():
             try:
                 payload = json.loads(self.log_history_file.read_text(encoding="utf-8"))
@@ -262,6 +297,7 @@ class MetricSampler:
         self._last_persist = now
         with self._lock:
             payload = {name: list(points) for name, points in self._history.items()}
+            analytics_payload = {name: list(points) for name, points in self._analytics_history.items()}
             self._trim_log_history_locked(round(time.time() * 1000))
             log_payload = {name: list(points) for name, points in self._log_history.items()}
         if self.history_file:
@@ -270,6 +306,14 @@ class MetricSampler:
                 temporary = self.history_file.with_suffix(".tmp")
                 temporary.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
                 temporary.replace(self.history_file)
+            except OSError:
+                pass
+        if self.analytics_file:
+            try:
+                self.analytics_file.parent.mkdir(parents=True, exist_ok=True)
+                temporary = self.analytics_file.with_suffix(".tmp")
+                temporary.write_text(json.dumps(analytics_payload, separators=(",", ":")), encoding="utf-8")
+                temporary.replace(self.analytics_file)
             except OSError:
                 pass
         if self.log_history_file:

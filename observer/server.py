@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parent.parent
 DASHBOARD = ROOT / "dashboard"
 collector = Collector()
 sampler = MetricSampler(collector)
-INSTANCE_ROUTE = re.compile(r"^/api/v1/instances/([^/]+)/(snapshot|history|logs|config|report)$")
+INSTANCE_ROUTE = re.compile(r"^/api/v1/instances/([^/]+)/(snapshot|history|analytics|logs|config|report)$")
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -67,6 +67,7 @@ class Handler(BaseHTTPRequestHandler):
                         "/api/v1/instances",
                         "/api/v1/instances/{name}/snapshot",
                         "/api/v1/instances/{name}/history?limit=900",
+                        "/api/v1/instances/{name}/analytics?limit=10080",
                         "/api/v1/instances/{name}/logs",
                         "/api/v1/instances/{name}/config",
                         "/api/v1/instances/{name}/report?at=<timestamp>",
@@ -119,6 +120,12 @@ class Handler(BaseHTTPRequestHandler):
             except ValueError:
                 limit = 900
             return self._send({"instance": instance, "points": sampler.history(instance, limit)})
+        if resource == "analytics":
+            try:
+                limit = int(query.get("limit", [str(sampler.max_analytics_points)])[0])
+            except ValueError:
+                limit = sampler.max_analytics_points
+            return self._send({"instance": instance, "points": sampler.analytics_history(instance, limit)})
         if resource == "logs":
             at = _query_timestamp(query)
             if at is not None:

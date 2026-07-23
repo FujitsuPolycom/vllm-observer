@@ -102,6 +102,7 @@ The container exposes a versioned, read-only JSON API on port `8088`.
 | `/api/v1/instances` | Discovered containers and runtime configuration |
 | `/api/v1/instances/{name}/snapshot` | Latest verified telemetry point |
 | `/api/v1/instances/{name}/history?limit=900` | Rolling real-sample history |
+| `/api/v1/instances/{name}/analytics?limit=10080` | Lower-rate long-term Request Analytics history |
 | `/api/v1/instances/{name}/logs` | Classified bounded log tail |
 | `/api/v1/instances/{name}/logs?at=<timestamp>` | Archived log context around a chart point |
 | `/api/v1/instances/{name}/report?at=<timestamp>` | Downloadable HTML report for a chart point |
@@ -130,6 +131,8 @@ API reads never trigger metric collection. One background sampler owns counter s
 | `VLLM_OBSERVER_METRICS_URL_<INSTANCE>` | empty | Per-container Prometheus URL |
 | `VLLM_OBSERVER_SAMPLE_SECONDS` | `1` | Real server-side sample cadence |
 | `VLLM_OBSERVER_HISTORY_POINTS` | `3600` | Samples retained per workload |
+| `VLLM_OBSERVER_ANALYTICS_SAMPLE_SECONDS` | `60` | Long-term Request Analytics snapshot interval |
+| `VLLM_OBSERVER_ANALYTICS_HISTORY_SECONDS` | `604800` | Long-term Request Analytics retention age; default is seven days |
 | `VLLM_OBSERVER_DATA_DIR` | empty | Directory for durable rolling history |
 
 The default Compose deployment sets `VLLM_OBSERVER_DATA_DIR=/data` on a named volume. The log archive is deduplicated by newly seen lines, capped at 50 MB by default, and trimmed to seven days. A high-volume logger may reach the byte cap before seven days.

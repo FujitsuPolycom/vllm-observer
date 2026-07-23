@@ -13,6 +13,7 @@ export const api = {
   instances: () => request('/api/v1/instances'),
   snapshot: name => request(instancePath(name, 'snapshot')),
   history: (name, limit = 3600) => request(`${instancePath(name, 'history')}?limit=${limit}`),
+  analytics: (name, limit = 10080) => request(`${instancePath(name, 'analytics')}?limit=${limit}`),
   logs: name => request(instancePath(name, 'logs')),
   logsAt: (name, timestamp) => instancePath(name, 'logs') + '?at=' + encodeURIComponent(timestamp),
   config: name => request(instancePath(name, 'config')),
