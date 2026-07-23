@@ -24,6 +24,8 @@ class Collector:
         self.tail = min(1000, max(20, int(os.getenv("VLLM_OBSERVER_LOG_TAIL", "320"))))
         self.docker_enabled = os.getenv("VLLM_OBSERVER_DOCKER", "1").lower() not in {"0", "false", "no"}
         self.allowlist = {x.strip() for x in os.getenv("VLLM_OBSERVER_CONTAINER_ALLOWLIST", "").split(",") if x.strip()}
+        configured_terms = [x.strip().lower() for x in os.getenv("VLLM_OBSERVER_DISCOVERY_TERMS", "").split(",") if x.strip()]
+        self.discovery_terms = tuple(configured_terms) or VLLM_TERMS
         self.paths = [Path(x.strip()) for x in os.getenv("VLLM_OBSERVER_LOG_PATHS", "").split(",") if x.strip()]
         self.metrics_url = os.getenv("VLLM_OBSERVER_METRICS_URL", "").strip()
         self.metrics_host = os.getenv("VLLM_OBSERVER_METRICS_HOST", "127.0.0.1").strip()
@@ -49,7 +51,7 @@ class Collector:
         haystack = " ".join([info.get("Name", ""), config.get("Image", ""), command, labels]).lower()
         if "observer" in haystack or "vllm-observer" in haystack:
             return False
-        return any(term in haystack for term in VLLM_TERMS)
+        return any(term in haystack for term in self.discovery_terms)
 
     def _env(self, values: list[str] | None) -> dict[str, str]:
         prefixes = (

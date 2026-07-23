@@ -1,3 +1,5 @@
+import { formatTime } from './time.js';
+
 const element = id => document.getElementById(id);
 const escapeHtml = value => String(value ?? '').replace(
   /[&<>"']/g,
@@ -40,7 +42,7 @@ export function renderSnapshot(point) {
   element('sourceModel').textContent = source.observed_models?.join(', ') || source.expected_model || 'Waiting';
  element('sampleCadence').textContent = point.sample_seconds ? `${point.sample_seconds.toFixed(2)} s` : 'Waiting';
   element('realSamplingRate').textContent = point.sample_seconds ? `${point.sample_seconds.toFixed(2)} s` : 'Waiting';
-  element('lastCollected').textContent = point.timestamp ? new Date(point.timestamp).toLocaleTimeString() : 'Waiting';
+  element('lastCollected').textContent = point.timestamp ? formatTime(point.timestamp, true) : 'Waiting';
 
   const diagnostic = element('diagnostic');
   diagnostic.className = `diagnostic source-status ${point.status || 'waiting'}`;

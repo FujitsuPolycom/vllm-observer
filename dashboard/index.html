@@ -73,7 +73,18 @@
       <div class="timeline-control">
         <label for="historyPosition">History position</label>
         <input id="historyPosition" type="range" min="0" max="0" value="0" step="1" disabled>
-        <output id="historyPositionLabel">Live edge</output>
+        <div class="timeline-readout"><output id="historyPositionLabel">Live edge</output><output id="historyTimestamp">Waiting for samples</output></div>
+        <label for="timezoneSelect">Timezone</label>
+        <select id="timezoneSelect">
+          <option value="local">Browser local</option>
+          <option value="UTC">UTC</option>
+          <option value="America/Chicago">America/Chicago</option>
+          <option value="America/Denver">America/Denver</option>
+          <option value="America/Los_Angeles">America/Los_Angeles</option>
+          <option value="America/New_York">America/New_York</option>
+          <option value="Europe/London">Europe/London</option>
+          <option value="Asia/Tokyo">Asia/Tokyo</option>
+        </select>
       </div>
 
       <div class="chart-grid">

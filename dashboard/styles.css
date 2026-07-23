@@ -173,7 +173,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 #historyPosition { direction: rtl; }
 .timeline-control {
   display: grid;
-  grid-template-columns: auto minmax(180px, 1fr) 140px;
+  grid-template-columns: auto minmax(180px, 1fr) minmax(180px, auto) auto 170px;
   align-items: center;
   gap: 12px;
   margin: 0 0 8px;
@@ -183,6 +183,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 }
 .timeline-control label { margin: 0; }
 .timeline-control output { color: var(--muted); font: 11px ui-monospace, monospace; text-align: right; }
+.timeline-readout { display: grid; gap: 2px; min-width: 180px; }
+.timeline-readout output:first-child { color: var(--accent-dark); font-weight: 800; }
+.timeline-readout output:last-child { color: var(--muted); font-size: 10px; white-space: nowrap; }
+.timeline-control select { min-width: 0; border: 1px solid var(--strong-line); border-radius: 5px; padding: 0 28px 0 9px; color: var(--text); background: var(--panel); }
 .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .chart-panel {
   position: relative;
@@ -333,6 +337,7 @@ body.minimal .metric-card, body.minimal .chart-panel { border-radius: 0; }
   .metric-card { min-height: 104px; }
   .timeline-control { grid-template-columns: 1fr; }
   .timeline-control output { text-align: left; }
+  .timeline-readout { min-width: 0; }
   .config-row { grid-template-columns: 1fr; gap: 4px; }
   footer { flex-direction: column; }
 }

@@ -1,3 +1,5 @@
+import { formatTime } from './time.js';
+
 const pick = (object, path) => path.split('.').reduce((value, key) => value?.[key], object);
 
 function interpolate(points, subdivisions) {
@@ -122,7 +124,7 @@ export class TimeSeriesChart {
       ? '<div class="chart-tooltip-section"><b>Per-request context</b>' + tooltipRows.map(([label, value, unit]) =>
         '<span>' + label + ': ' + formatValue(value) + (unit || '') + '</span>').join('') + '</div>'
       : '';
-    this.tooltip.innerHTML = '<strong>' + new Date(this.hoverTimestamp).toLocaleTimeString() + '</strong>' +
+    this.tooltip.innerHTML = '<strong>' + formatTime(this.hoverTimestamp, true) + '</strong>' +
       this.series.map(series => {
         const value = this.valueAt(series.path, this.hoverTimestamp);
         return '<span><i style="background:' + series.color + '"></i>' +
@@ -230,7 +232,7 @@ export class TimeSeriesChart {
     context.textAlign = 'center';
     [0, 0.5, 1].forEach(position => {
       const timestamp = minTime + timeSpan * position;
-      context.fillText(new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }), margin.left + plotWidth * position, height - 8);
+      context.fillText(formatTime(timestamp), margin.left + plotWidth * position, height - 8);
     });
 
     this.series.forEach(series => {

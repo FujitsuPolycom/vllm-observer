@@ -54,6 +54,8 @@ Several numeric environment variables are converted directly with `int()` or `fl
 
 The default Compose deployment only discovers containers visible through the mounted Docker socket. It does not discover Kubernetes pods, containerd workloads, Podman machines, remote Docker daemons, or vLLM processes running directly on another host.
 
+The current release now supports `VLLM_OBSERVER_DISCOVERY_TERMS` for custom naming, but this remains a host-local Docker adapter rather than a general workload discovery system.
+
 **Direction:** keep the current Docker adapter, then add independent adapters for mounted logs, explicit targets, Kubernetes, and remote agents. The API should identify the topology and source capabilities instead of assuming every instance is a Docker container.
 
 ### Network reachability is not validated from the observer namespace

@@ -116,6 +116,7 @@ API reads never trigger metric collection. One background sampler owns counter s
 | `VLLM_OBSERVER_DOCKER` | `1` | Enable Docker discovery |
 | `VLLM_OBSERVER_LOG_PATHS` | empty | Comma-separated files or directories |
 | `VLLM_OBSERVER_CONTAINER_ALLOWLIST` | empty | Exact container names to include |
+| `VLLM_OBSERVER_DISCOVERY_TERMS` | built-in terms | Comma-separated extra/replacement terms matched against container names, images, commands, and label keys |
 | `VLLM_OBSERVER_LOG_TAIL` | `320` | Maximum lines returned per workload |
 | `VLLM_OBSERVER_LOG_SAMPLE_SECONDS` | `3` | Interval for capturing new log lines into the archive |
 | `VLLM_OBSERVER_LOG_HISTORY_SECONDS` | `604800` | Maximum log archive age; default is seven days |

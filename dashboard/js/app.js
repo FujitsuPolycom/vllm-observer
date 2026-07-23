@@ -1,5 +1,6 @@
 import { api } from './api.js';
 import { TimeSeriesChart } from './chart.js';
+import { formatTime, localTimezone, setTimezone } from './time.js';
 import {
   renderConfiguration,
   renderInstances,
@@ -178,7 +179,7 @@ async function selectWorkload(name) {
     drawCharts();
   } catch (error) {
     setConnection('error', 'Workload read failed');
-    element('diagnostic').className = 'diagnostic error';
+    element('diagnostic').className = 'diagnostic source-status error';
     element('diagnostic').textContent = error.message;
   }
 }
@@ -228,6 +229,10 @@ function drawCharts() {
   element('historyPositionLabel').textContent = state.historyOffset
     ? `${state.historyOffset} real samples back`
     : 'Live edge';
+  const windowEnd = visible.at(-1);
+  element('historyTimestamp').textContent = windowEnd
+    ? `Viewing through ${formatTime(windowEnd.timestamp, true)}`
+    : 'Waiting for samples';
   element('historyMeta').textContent = `${state.history.length} server-cached real samples · ${visible.length} displayed`;
 }
 
@@ -235,12 +240,12 @@ async function selectTimelinePoint(timestamp) {
   if (!state.selected) return;
   state.focusTimestamp = timestamp;
   element('exportReport').disabled = false;
-  element('logFocus').textContent = 'Loading logs near ' + new Date(timestamp).toLocaleTimeString();
+  element('logFocus').textContent = 'Loading logs near ' + formatTime(timestamp, true);
   drawCharts();
   try {
     const payload = await api.logsAt(state.selected, timestamp);
     renderLogs(payload);
-    element('logFocus').textContent = 'Point ' + new Date(timestamp).toLocaleTimeString() +
+    element('logFocus').textContent = 'Point ' + formatTime(timestamp, true) +
       ' · archive ±' + payload.archive_delta_seconds + 's';
     element('logs').scrollIntoView({ behavior: 'smooth', block: 'start' });
   } catch (error) {
@@ -275,6 +280,11 @@ element('historyPosition').addEventListener('input', event => {
   state.historyOffset = Number(event.target.value);
   drawCharts();
 });
+element('timezoneSelect').addEventListener('change', event => {
+  setTimezone(event.target.value);
+  drawCharts();
+  if (state.history.length) renderSnapshot(state.history.at(-1));
+});
 element('toggleCrosshair').addEventListener('click', event => {
   state.crosshair = !state.crosshair;
   event.currentTarget.textContent = state.crosshair ? 'Crosshair: On' : 'Crosshair: Off';
@@ -289,6 +299,7 @@ element('exportReport').addEventListener('click', () => {
 });
 
 setupChartInteractions();
+element('timezoneSelect').options[0].textContent = `Browser local (${localTimezone()})`;
 await loadInstances();
 await loadSnapshot();
 setInterval(loadSnapshot, 1000);
