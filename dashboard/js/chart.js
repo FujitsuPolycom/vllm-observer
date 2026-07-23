@@ -138,6 +138,7 @@ export class TimeSeriesChart {
     if (timestamp >= values.at(-1).x) return values.at(-1).y;
     const after = values.find(point => point.x >= timestamp);
     const before = values[values.indexOf(after) - 1];
+    if (this.options.discrete) return before.y;
     const fraction = (timestamp - before.x) / (after.x - before.x);
     return before.y + (after.y - before.y) * fraction;
   }
@@ -221,15 +222,24 @@ export class TimeSeriesChart {
         .map(point => ({ x: point.timestamp, y: Number(pick(point, series.path)), real: true }))
         .filter(point => Number.isFinite(point.y));
       if (!realPoints.length) return;
-      const displayPoints = interpolate(realPoints, this.subdivisions);
+      const displayPoints = this.options.discrete ? realPoints : interpolate(realPoints, this.subdivisions);
       context.strokeStyle = series.color;
       context.lineWidth = 2;
       context.lineJoin = 'round';
       context.beginPath();
-      displayPoints.forEach((point, index) => {
-        const method = index ? 'lineTo' : 'moveTo';
-        context[method](x(point.x), y(point.y));
-      });
+      if (this.options.discrete) {
+        context.moveTo(x(displayPoints[0].x), y(displayPoints[0].y));
+        displayPoints.slice(1).forEach(point => {
+          const previous = displayPoints[displayPoints.indexOf(point) - 1];
+          context.lineTo(x(point.x), y(previous.y));
+          context.lineTo(x(point.x), y(point.y));
+        });
+      } else {
+        displayPoints.forEach((point, index) => {
+          const method = index ? 'lineTo' : 'moveTo';
+          context[method](x(point.x), y(point.y));
+        });
+      }
       context.stroke();
 
       context.fillStyle = series.color;

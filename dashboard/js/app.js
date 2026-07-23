@@ -126,7 +126,7 @@ const charts = {
   requests: new TimeSeriesChart(element('requestChart'), [
     { path: 'requests.running', label: 'Running', color: '#12a594', unit: '' },
     { path: 'requests.waiting', label: 'Queued', color: '#d14f68', unit: '' },
-  ], { empty: 'Waiting for scheduler gauges', onPoint: point => selectTimelinePoint(point.timestamp) }),
+  ], { discrete: true, empty: 'Waiting for scheduler gauges', onPoint: point => selectTimelinePoint(point.timestamp) }),
 };
 
 async function loadInstances() {
