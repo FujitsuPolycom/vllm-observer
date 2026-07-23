@@ -69,14 +69,9 @@ function renderMetrics(values, live) {
 
 function renderLogs(groups) {
     const names = [['lmcache', 'LMCache / KV transfer'], ['prefill', 'Prefill / prompt'], ['decode', 'Decode / engine'], ['requests', 'Requests / serving'], ['other', 'Other / startup / warnings']];
-    names.forEach(([key, title]) => {
-        const body = $(`log-${key}`);
-        const scroll = body.scrollTop;
-        const lines = groups[key] || [];
-        $(`count-${key}`).textContent = `${lines.length} line${lines.length === 1 ? '' : 's'}`;
-        body.innerHTML = lines.length ? lines.map(line => `<div class="line">${esc(line)}</div>`).join('') : '<div class="empty">No matching lines yet.</div>';
-        body.scrollTop = scroll;
-    });
+    const scroll = $('logs').scrollTop;
+    $('logs').innerHTML = names.map(([key, title]) => { const lines = groups[key] || []; return `<article class="log"><div class="log-head">${title} <span>${lines.length} line${lines.length === 1 ? '' : 's'}</span></div><div class="log-body">${lines.length ? lines.map(line => `<div class="line">${esc(line)}</div>`).join('') : '<div class="empty">No matching lines yet.</div>'}</div></article>`; }).join('');
+    $('logs').scrollTop = scroll;
 }
 
 async function loadInstances() {
