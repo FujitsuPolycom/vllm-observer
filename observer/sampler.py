@@ -61,7 +61,8 @@ class MetricSampler:
     def sample_all(self) -> None:
         now = time.monotonic()
         if not self._inventory or now - self._last_inventory >= 10:
-            self._inventory = [item for item in self.collector.instances() if item.get("running")]
+            discover = getattr(self.collector, "running_instances", self.collector.instances)
+            self._inventory = [item for item in discover() if item.get("running")]
             self._last_inventory = now
         instances = self._inventory
         for item in instances:

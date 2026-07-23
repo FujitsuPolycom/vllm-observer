@@ -95,10 +95,14 @@ class Collector:
             "mounts": [{"source": mount.get("Source", ""), "destination": mount.get("Destination", ""), "mode": mount.get("Mode", "ro")} for mount in info.get("Mounts", [])],
         }
 
-    def docker_instances(self) -> list[dict[str, Any]]:
+    def docker_instances(self, include_stopped: bool = True) -> list[dict[str, Any]]:
         if not self.docker_enabled:
             return []
-        result = self._run(["docker", "ps", "-a", "--format", "{{.Names}}"], timeout=8)
+        args = ["docker", "ps"]
+        if include_stopped:
+            args.append("-a")
+        args.extend(["--format", "{{.Names}}"])
+        result = self._run(args, timeout=8)
         if result.returncode:
             return []
         found = []
@@ -121,6 +125,9 @@ class Collector:
 
     def instances(self) -> list[dict[str, Any]]:
         return self.docker_instances() + self.file_instances()
+
+    def running_instances(self) -> list[dict[str, Any]]:
+        return self.docker_instances(include_stopped=False) + self.file_instances()
 
     def logs(self, instance: str) -> list[str]:
         if not IDENT_RE.fullmatch(instance):
