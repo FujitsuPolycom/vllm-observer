@@ -19,6 +19,7 @@ const state = {
   focusTimestamp: null,
   crosshair: true,
   syncCrosshair: false,
+  bridgeGaps: false,
   chartOrder: loadChartOrder(),
 };
 
@@ -331,6 +332,12 @@ element('syncCrosshair').addEventListener('click', event => {
   event.currentTarget.textContent = state.syncCrosshair ? 'Sync hover: On' : 'Sync hover: Off';
   event.currentTarget.setAttribute('aria-pressed', String(state.syncCrosshair));
   if (!state.syncCrosshair) clearHover();
+});
+element('bridgeGaps').addEventListener('click', event => {
+  state.bridgeGaps = !state.bridgeGaps;
+  event.currentTarget.textContent = state.bridgeGaps ? 'Bridge gaps: On' : 'Bridge gaps: Off';
+  event.currentTarget.setAttribute('aria-pressed', String(state.bridgeGaps));
+  Object.values(charts).forEach(chart => chart.setBridgeGaps(state.bridgeGaps));
 });
 element('clearPin').addEventListener('click', () => {
   state.focusTimestamp = null;

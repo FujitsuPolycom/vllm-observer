@@ -86,6 +86,7 @@ export class TimeSeriesChart {
     this.hoverTimestamp = null;
     this.crosshairEnabled = true;
     this.gapLimit = 5000;
+    this.bridgeGaps = false;
     this.tooltipAnchor = null;
     this.tooltip = document.createElement('div');
     this.tooltip.className = 'chart-tooltip';
@@ -129,6 +130,11 @@ export class TimeSeriesChart {
       this.hoverTimestamp = null;
       this.tooltip.hidden = true;
     }
+    this.draw();
+  }
+
+  setBridgeGaps(enabled) {
+    this.bridgeGaps = enabled;
     this.draw();
   }
 
@@ -311,7 +317,10 @@ export class TimeSeriesChart {
       context.strokeStyle = series.color;
       context.lineWidth = 2;
       context.lineJoin = 'round';
-      splitAtGaps(realPoints, this.gapLimit).forEach(segment => {
+      const segments = this.options.discrete || !this.bridgeGaps
+        ? splitAtGaps(realPoints, this.gapLimit)
+        : [realPoints];
+      segments.forEach(segment => {
         const displayPoints = this.options.discrete ? segment : interpolate(segment, this.subdivisions);
         context.beginPath();
         if (this.options.discrete) {
