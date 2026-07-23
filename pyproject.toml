@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vllm-observer"
-version = "0.1.0"
+version = "0.2.0"
 description = "Read-only, drop-in observability dashboard for vLLM workloads"
 requires-python = ">=3.11"
 

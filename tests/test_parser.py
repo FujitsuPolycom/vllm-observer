@@ -1,7 +1,7 @@
 import unittest
 
 from observer.parser import classify, metrics
-from observer.prometheus import parse, rates
+from observer.prometheus import normalize, parse, parse_samples, rates
 
 
 SAMPLE = [
@@ -19,6 +19,53 @@ class ParserTests(unittest.TestCase):
         result = rates(previous, current, 5)
         self.assertEqual(result["vllm_prompt_tokens_total"], 50)
         self.assertEqual(result["vllm_generation_tokens_total"], 12)
+
+    def test_labeled_prometheus_normalizes_vllm_pipeline(self):
+        before = parse_samples("""
+vllm:prompt_tokens_total{model_name="glm-5.2"} 100
+vllm:prompt_tokens_cached_total{model_name="glm-5.2"} 60
+vllm:prompt_tokens_by_source_total{model_name="glm-5.2",source="local_compute"} 40
+vllm:prompt_tokens_by_source_total{model_name="glm-5.2",source="local_cache_hit"} 50
+vllm:prompt_tokens_by_source_total{model_name="glm-5.2",source="external_kv_transfer"} 10
+vllm:generation_tokens_total{model_name="glm-5.2"} 20
+vllm:prefix_cache_queries_total{model_name="glm-5.2"} 80
+vllm:prefix_cache_hits_total{model_name="glm-5.2"} 40
+vllm:external_prefix_cache_queries_total{model_name="glm-5.2"} 10
+vllm:external_prefix_cache_hits_total{model_name="glm-5.2"} 5
+vllm:spec_decode_num_draft_tokens_total{model_name="glm-5.2"} 12
+vllm:spec_decode_num_accepted_tokens_total{model_name="glm-5.2"} 8
+vllm:kv_cache_usage_perc{model_name="glm-5.2"} 0.25
+vllm:num_requests_running{model_name="glm-5.2"} 2
+vllm:num_requests_waiting{model_name="glm-5.2"} 1
+""")
+        after = parse_samples("""
+vllm:prompt_tokens_total{model_name="glm-5.2"} 300
+vllm:prompt_tokens_cached_total{model_name="glm-5.2"} 180
+vllm:prompt_tokens_by_source_total{model_name="glm-5.2",source="local_compute"} 120
+vllm:prompt_tokens_by_source_total{model_name="glm-5.2",source="local_cache_hit"} 150
+vllm:prompt_tokens_by_source_total{model_name="glm-5.2",source="external_kv_transfer"} 30
+vllm:generation_tokens_total{model_name="glm-5.2"} 60
+vllm:prefix_cache_queries_total{model_name="glm-5.2"} 180
+vllm:prefix_cache_hits_total{model_name="glm-5.2"} 90
+vllm:external_prefix_cache_queries_total{model_name="glm-5.2"} 30
+vllm:external_prefix_cache_hits_total{model_name="glm-5.2"} 15
+vllm:spec_decode_num_draft_tokens_total{model_name="glm-5.2"} 32
+vllm:spec_decode_num_accepted_tokens_total{model_name="glm-5.2"} 18
+vllm:kv_cache_usage_perc{model_name="glm-5.2"} 0.5
+vllm:num_requests_running{model_name="glm-5.2"} 3
+vllm:num_requests_waiting{model_name="glm-5.2"} 0
+""")
+        result = normalize(before, after, 2)
+        self.assertEqual(result["models"], ["glm-5.2"])
+        self.assertEqual(result["throughput"]["fresh_prefill_tps"], 40)
+        self.assertEqual(result["throughput"]["cached_local_tps"], 50)
+        self.assertEqual(result["throughput"]["external_cache_tps"], 10)
+        self.assertEqual(result["throughput"]["decode_tps"], 20)
+        self.assertEqual(result["cache"]["kv_usage_percent"], 50)
+        self.assertEqual(result["cache"]["prefix_hit_percent"], 50)
+        self.assertEqual(result["speculative"]["draft_tps"], 10)
+        self.assertEqual(result["speculative"]["accepted_tps"], 5)
+        self.assertEqual(result["requests"]["running"], 3)
 
     def test_performance_metrics(self):
         result = metrics(SAMPLE)
