@@ -86,6 +86,7 @@ export class TimeSeriesChart {
     this.hoverTimestamp = null;
     this.crosshairEnabled = true;
     this.gapLimit = 5000;
+    this.tooltipAnchor = null;
     this.tooltip = document.createElement('div');
     this.tooltip.className = 'chart-tooltip';
     this.tooltip.hidden = true;
@@ -180,8 +181,15 @@ export class TimeSeriesChart {
 
   positionTooltip(localX, localY) {
     const rect = this.canvas.getBoundingClientRect();
-    this.tooltip.style.left = Math.min(Math.max(8, localX + 14), Math.max(8, rect.width - this.tooltip.offsetWidth - 8)) + 'px';
-    this.tooltip.style.top = Math.min(Math.max(8, localY - 18), Math.max(8, rect.height - this.tooltip.offsetHeight - 8)) + 'px';
+    const left = Math.min(Math.max(8, localX + 14), Math.max(8, rect.width - this.tooltip.offsetWidth - 8));
+    const top = Math.min(Math.max(8, localY - 18), Math.max(8, rect.height - this.tooltip.offsetHeight - 8));
+    this.tooltip.style.left = left + 'px';
+    this.tooltip.style.top = top + 'px';
+    this.tooltipAnchor = {
+      left,
+      right: left + this.tooltip.offsetWidth,
+      y: top + this.tooltip.offsetHeight / 2,
+    };
   }
 
   valueAt(path, timestamp) {
@@ -254,14 +262,25 @@ export class TimeSeriesChart {
 
     const guideTimestamp = this.hoverTimestamp || this.focusTimestamp;
     if (guideTimestamp && guideTimestamp >= minTime && guideTimestamp <= maxTime) {
+      const guideX = x(guideTimestamp);
       context.strokeStyle = '#172124';
       context.setLineDash([4, 4]);
       context.lineWidth = 1;
       context.beginPath();
-      context.moveTo(x(guideTimestamp), margin.top);
-      context.lineTo(x(guideTimestamp), margin.top + plotHeight);
+      context.moveTo(guideX, margin.top);
+      context.lineTo(guideX, margin.top + plotHeight);
       context.stroke();
       context.setLineDash([]);
+      if (this.hoverTimestamp && !this.tooltip.hidden && this.tooltipAnchor) {
+        const targetX = guideX <= this.tooltipAnchor.left ? this.tooltipAnchor.left : this.tooltipAnchor.right;
+        context.strokeStyle = '#172124';
+        context.setLineDash([2, 3]);
+        context.beginPath();
+        context.moveTo(guideX, this.tooltipAnchor.y);
+        context.lineTo(targetX, this.tooltipAnchor.y);
+        context.stroke();
+        context.setLineDash([]);
+      }
     }
 
     context.strokeStyle = grid;
