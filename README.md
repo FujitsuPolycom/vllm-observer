@@ -23,6 +23,50 @@ The included Compose file:
 
 Docker socket access is powerful even when mounted read-only. Protect the observer with a firewall, VPN, authentication proxy, or private network.
 
+### Choose the deployment mode
+
+Use `compose/docker-compose.yml` when the observer and vLLM run on the same Docker host. It discovers running and stopped vLLM-like containers, reads Docker logs, and resolves a metrics port from `PORT`, `VLLM_PORT`, or `--port`.
+
+Use `docker/docker-compose.files.yml` when Docker discovery is unavailable or you only want to expose selected log files. Create the local log directory, put the files in it, and provide a metrics URL that is reachable **from inside the observer container**:
+
+```bash
+mkdir -p docker/logs
+VLLM_OBSERVER_METRICS_URL=http://host.docker.internal:8000/metrics \
+  docker compose -f docker/docker-compose.files.yml up -d --build
+```
+
+On Windows PowerShell, use `New-Item -ItemType Directory docker\logs` before starting Compose.
+
+For a Linux host, replace `host.docker.internal` with a reachable host address or add an equivalent host-gateway mapping. The mounted-log example does not discover containers; it observes the configured files and the one explicit metrics endpoint.
+
+To run directly on a host without Docker Compose (Bash):
+
+```bash
+python -m venv .venv
+. .venv/bin/activate                 # Windows PowerShell: .venv\Scripts\Activate.ps1
+python -m pip install -e .
+VLLM_OBSERVER_DOCKER=0 \
+VLLM_OBSERVER_METRICS_URL=http://127.0.0.1:8000/metrics \
+  python -m observer.server
+```
+
+PowerShell equivalent:
+
+```powershell
+python -m venv .venv
+. .venv\Scripts\Activate.ps1
+python -m pip install -e .
+$env:VLLM_OBSERVER_DOCKER = "0"
+$env:VLLM_OBSERVER_METRICS_URL = "http://127.0.0.1:8000/metrics"
+python -m observer.server
+```
+
+The observer is read-only, but it still needs network access to the metrics endpoint and, for Docker discovery, access to the Docker socket. Confirm the endpoint from the observer's network namespace before troubleshooting the dashboard:
+
+```bash
+docker compose exec vllm-observer python -c "from urllib.request import urlopen; print(urlopen('http://host.docker.internal:8000/metrics', timeout=3).status)"
+```
+
 ## Metric endpoint resolution
 
 For each running container, the observer reads `PORT`, `VLLM_PORT`, or `--port` and requests:
@@ -85,6 +129,8 @@ API reads never trigger metric collection. One background sampler owns counter s
 | `VLLM_OBSERVER_HISTORY_POINTS` | `3600` | Samples retained per workload |
 | `VLLM_OBSERVER_DATA_DIR` | empty | Directory for durable rolling history |
 
+The default Compose deployment sets `VLLM_OBSERVER_DATA_DIR=/data` on a named volume. The log archive is deduplicated by newly seen lines, capped at 50 MB by default, and trimmed to seven days. A high-volume logger may reach the byte cap before seven days.
+
 ## Metrics
 
 The Prometheus sampler calculates:
@@ -104,3 +150,7 @@ python -m observer.server
 ```
 
 Then open `http://127.0.0.1:8088`.
+
+## Maintainer review
+
+The current deep-dive findings are tracked in [`docs/FUTURE_IMPROVEMENTS.md`](docs/FUTURE_IMPROVEMENTS.md). They cover access control, resilience, topology adapters, model/metric variation, persistence, and automated verification work that is intentionally outside the current release scope.
