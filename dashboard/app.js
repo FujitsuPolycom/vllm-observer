@@ -1,4 +1,4 @@
-const state = { instances: [], selected: '', paused: false, inventorySignature: '', metricSignature: '', values: {}, live: {}, liveHistory: [] };
+const state = { instances: [], selected: '', paused: false, inventorySignature: '', metricSignature: '', values: {}, live: {}, liveHistory: [], historyOffset: 0 };
 const $ = id => document.getElementById(id);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 const labels = { prompt_tokens_per_second: 'Prefill / prompt', generation_tokens_per_second: 'Decode / generation', gpu_kv_cache_percent: 'GPU KV cache', prefix_cache_hit_percent: 'Prefix cache hit', external_prefix_cache_hit_percent: 'External prefix hit', speculative_mean_acceptance_length: 'MTP acceptance length', speculative_depth: 'MTP speculative depth', accepted_tokens_per_second: 'Accepted throughput', drafted_tokens_per_second: 'Drafted throughput', draft_acceptance_percent: 'Draft acceptance', lmcache_total_tokens: 'LMCache total', lmcache_computed_tokens: 'LMCache computed', lmcache_hit_tokens: 'LMCache hit', lmcache_load_tokens: 'LMCache load', cache_transfer_chunks: 'CKV / cache chunks', running_requests: 'Running requests', waiting_requests: 'Queued requests' };
@@ -7,6 +7,10 @@ const liveLabels = { fresh_prefill_tokens_per_second: 'Fresh prefill', cached_in
 const liveKeys = ['fresh_prefill_tokens_per_second', 'cached_ingest_tokens_per_second', 'decode_tokens_per_second', 'cache_hit_percent', 'running_requests', 'waiting_requests'];
 
 function format(key, value) { return `${Number.isInteger(value) ? value : Number(value).toFixed(1)}${units[key] ? ` ${units[key]}` : ''}`; }
+function historyKey() { return `vllm-observer:prometheus-history:${state.selected}`; }
+function updateHistoryControls() { const slider = $('historyPosition'); const max = Math.max(0, state.liveHistory.length - 90); state.historyOffset = Math.min(state.historyOffset, max); slider.max = max; slider.value = state.historyOffset; slider.disabled = max === 0; $('historyLabel').textContent = max === 0 ? 'latest' : state.historyOffset ? `${state.historyOffset}s back` : 'latest'; }
+function renderHistory() { updateHistoryControls(); renderLiveGraph(state.liveHistory, Number($('smoothness').value), state.historyOffset); }
+function restoreHistory() { state.historyOffset = 0; try { const saved = JSON.parse(localStorage.getItem(historyKey()) || '[]'); state.liveHistory = Array.isArray(saved) ? saved.filter(sample => sample && Number.isFinite(sample.time)).slice(-900) : []; } catch (error) { state.liveHistory = []; } renderHistory(); }
 
 function renderConfig(item) {
     if (!item) { $('config').innerHTML = '<div class="config-panel"><div class="empty">No workload selected.</div></div>'; return; }
@@ -90,6 +94,7 @@ async function loadInstances() {
         if (signature !== state.inventorySignature || selectedChanged) {
             state.inventorySignature = signature;
             renderSelect();
+            if (selectedChanged) restoreHistory();
             renderConfig(state.instances.find(item => item.name === state.selected));
         }
         $('status').textContent = 'observer live';
@@ -126,7 +131,7 @@ function recordLive(live) {
     if (!live || !live.available) return;
     const sample = { time: Date.now() };
     ['fresh_prefill_tokens_per_second', 'cached_ingest_tokens_per_second', 'decode_tokens_per_second'].forEach(key => { if (live[key] !== undefined) sample[key] = Number(live[key]); });
-    if (Object.keys(sample).length > 1) { state.liveHistory = [...state.liveHistory, sample].slice(-90); renderLiveGraph(state.liveHistory, Number($('smoothness').value)); }
+    if (Object.keys(sample).length > 1) { state.liveHistory = [...state.liveHistory, sample].slice(-900); try { localStorage.setItem(historyKey(), JSON.stringify(state.liveHistory)); } catch (error) { /* local cache is optional */ } renderHistory(); }
 }
 
 async function loadLive() {
@@ -143,12 +148,13 @@ async function loadLive() {
     }
 }
 
-$('instance').addEventListener('change', event => { state.selected = event.target.value; renderConfig(state.instances.find(item => item.name === state.selected)); loadLogs(); });
+$('instance').addEventListener('change', event => { state.selected = event.target.value; restoreHistory(); renderConfig(state.instances.find(item => item.name === state.selected)); loadLogs(); });
 $('pause').addEventListener('click', () => { state.paused = !state.paused; $('pause').textContent = state.paused ? 'Resume' : 'Pause'; $('pause').classList.toggle('active', state.paused); if (!state.paused) { loadInstances(); loadLogs(); } });
 $('styleToggle').addEventListener('click', () => { document.body.classList.toggle('minimal'); $('styleToggle').textContent = document.body.classList.contains('minimal') ? 'Rich view' : 'Minimal view'; });
 $('compose').addEventListener('click', async () => { const suffix = state.selected ? `?instance=${encodeURIComponent(state.selected)}` : ''; const response = await fetch(`/api/compose${suffix}`); if (!response.ok) { $('refresh').textContent = 'compose build failed'; return; } const blob = await response.blob(); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `${state.selected || 'vllm-observer'}.compose.yml`; link.click(); URL.revokeObjectURL(link.href); });
-$('smoothness').addEventListener('input', event => { renderLiveGraph(state.liveHistory, Number(event.target.value)); });
-loadInstances().then(loadLogs);
+$('smoothness').addEventListener('input', event => { renderHistory(); });
+$('historyPosition').addEventListener('input', event => { state.historyOffset = Number(event.target.value); renderHistory(); });
+loadInstances().then(() => { restoreHistory(); return loadLogs(); });
 setInterval(() => { if (!document.hidden) loadLogs(); }, 3000);
 setInterval(() => { if (!document.hidden) loadLive(); }, 1000);
 setInterval(() => { if (!document.hidden) loadInstances(); }, 15000);
