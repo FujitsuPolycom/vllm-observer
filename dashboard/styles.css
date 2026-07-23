@@ -179,6 +179,10 @@ h3 { margin: 0; font-size: 14px; }
 .percentile-row i { display: block; height: 9px; border-radius: 5px; background: linear-gradient(90deg, var(--accent) var(--size), var(--line) var(--size)); }
 .percentile-row b { color: var(--text); font-weight: 700; }
 .request-small-grid { padding: 12px; border: 1px solid var(--line); border-radius: 5px; background: var(--panel); }
+.analytics-disclosure > summary.section-heading { min-height: 0; padding: 0 0 10px; list-style: none; }
+.analytics-disclosure > summary.section-heading::-webkit-details-marker { display: none; }
+.analytics-disclosure > summary.section-heading::after { content: "Collapse"; color: var(--muted); font: 10px ui-monospace, monospace; }
+.analytics-disclosure:not([open]) > summary.section-heading::after { content: "Expand"; }
 
 .chart-section { padding-top: 28px; }
 .chart-controls { display: grid; grid-template-columns: minmax(220px, 1fr) auto 120px auto auto auto; align-items: center; gap: 8px 12px; }
