@@ -57,7 +57,7 @@
           <h2 id="timelineTitle">Telemetry timeline</h2>
         </div>
         <div class="chart-controls">
-          <label for="smoothness">Points between samples <output id="smoothnessValue">6</output></label>
+          <label for="smoothness" title="Controls how many visually interpolated points are drawn between real Prometheus samples. It does not change the server sampling rate or measured values.">Virtual sampling rate <output id="smoothnessValue">6</output></label>
           <input id="smoothness" type="range" min="0" max="20" step="1" value="6">
           <label for="windowSize">Window</label>
           <select id="windowSize">
