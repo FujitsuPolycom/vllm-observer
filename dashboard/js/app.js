@@ -125,6 +125,31 @@ function setupChartInteractions() {
   });
 }
 
+function setupSeriesToggles() {
+  document.querySelectorAll('[data-chart-panel]').forEach(panel => {
+    const chart = charts[panel.dataset.chartPanel];
+    if (!chart) return;
+    const key = `vllm-observer:series:${panel.dataset.chartPanel}`;
+    let hidden = [];
+    try { hidden = JSON.parse(localStorage.getItem(key) || '[]'); } catch (error) { hidden = []; }
+    panel.querySelectorAll('.legend-toggle').forEach(button => {
+      const path = button.dataset.series;
+      const visible = !hidden.includes(path);
+      chart.setSeriesVisible(path, visible);
+      button.setAttribute('aria-pressed', String(visible));
+      button.addEventListener('click', () => {
+        const nextVisible = button.getAttribute('aria-pressed') !== 'true';
+        chart.setSeriesVisible(path, nextVisible);
+        button.setAttribute('aria-pressed', String(nextVisible));
+        const hiddenPaths = [...panel.querySelectorAll('.legend-toggle')]
+          .filter(item => item.getAttribute('aria-pressed') !== 'true')
+          .map(item => item.dataset.series);
+        try { localStorage.setItem(key, JSON.stringify(hiddenPaths)); } catch (error) { /* optional preference */ }
+      });
+    });
+  });
+}
+
 function syncHover(timestamp) {
   if (!state.syncCrosshair) return;
   Object.values(charts).forEach(chart => chart.setHoverTimestamp(timestamp, true));
@@ -366,6 +391,7 @@ element('exportReport').addEventListener('click', () => {
 });
 
 setupChartInteractions();
+setupSeriesToggles();
 applyColorMode(loadColorMode());
 element('timezoneSelect').options[0].textContent = `Browser local (${localTimezone()})`;
 await loadInstances();

@@ -253,7 +253,10 @@ body.chart-expanded { overflow: hidden; }
 .panel-heading p { margin: 4px 0 0; color: var(--muted); font-size: 11px; }
 .chart-model { margin-left: 7px; color: var(--accent-dark); font: 700 10px ui-monospace, monospace; }
 .legend { display: flex; flex-wrap: wrap; justify-content: end; gap: 8px 14px; color: var(--muted); font-size: 10px; }
-.legend span::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 5px; background: var(--series); }
+.legend-toggle { border: 0; padding: 0; color: var(--muted); background: transparent; cursor: pointer; font-size: 10px; }
+.legend-toggle::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 5px; background: var(--series); }
+.legend-toggle[aria-pressed="false"] { opacity: .38; text-decoration: line-through; }
+.legend-toggle:hover { color: var(--text); }
 canvas { display: block; width: 100%; height: 250px; }
 
 .capability-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }

@@ -87,6 +87,7 @@ export class TimeSeriesChart {
     this.crosshairEnabled = true;
     this.gapLimit = 5000;
     this.bridgeGaps = true;
+    this.visibleSeries = new Set(series.map(item => item.path));
     this.tooltipAnchor = null;
     this.tooltip = document.createElement('div');
     this.tooltip.className = 'chart-tooltip';
@@ -131,6 +132,12 @@ export class TimeSeriesChart {
 
   setBridgeGaps(enabled) {
     this.bridgeGaps = enabled;
+    this.draw();
+  }
+
+  setSeriesVisible(path, visible) {
+    if (visible) this.visibleSeries.add(path);
+    else this.visibleSeries.delete(path);
     this.draw();
   }
 
@@ -185,7 +192,7 @@ export class TimeSeriesChart {
         '<span>' + label + ': ' + formatValue(value) + (unit || '') + '</span>').join('') + '</div>'
       : '';
     this.tooltip.innerHTML = '<strong>' + formatTime(this.hoverTimestamp, true) + '</strong>' +
-      this.series.map(series => {
+      this.series.filter(series => this.visibleSeries.has(series.path)).map(series => {
         const value = this.valueAt(series.path, this.hoverTimestamp);
         return '<span><i style="background:' + series.color + '"></i>' +
           (series.label || series.path) + ': ' + formatValue(value) + (series.unit || '') + '</span>';
@@ -241,7 +248,7 @@ export class TimeSeriesChart {
     const margin = { top: 18, right: 16, bottom: 30, left: 52 };
     const plotWidth = width - margin.left - margin.right;
     const plotHeight = height - margin.top - margin.bottom;
-    const available = this.series.flatMap(series =>
+    const available = this.series.filter(series => this.visibleSeries.has(series.path)).flatMap(series =>
       this.points
         .map(point => Number(pick(point, series.path)))
         .filter(Number.isFinite)
@@ -317,6 +324,7 @@ export class TimeSeriesChart {
     });
 
     this.series.forEach(series => {
+      if (!this.visibleSeries.has(series.path)) return;
       const realPoints = this.points
         .map(point => ({ x: point.timestamp, y: Number(pick(point, series.path)), real: true }))
         .filter(point => Number.isFinite(point.y));

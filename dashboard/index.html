@@ -116,9 +116,9 @@
           <div class="panel-heading">
             <div><h3>Input and cache pipeline <small class="chart-model"></small></h3><p>Fresh compute, local prefix reuse, and external KV transfer</p></div>
             <div class="legend">
-              <span style="--series:#12a594">Fresh prefill</span>
-              <span style="--series:#de7b32">Local cache</span>
-              <span style="--series:#4c72d9">External / LMCache</span>
+              <button class="legend-toggle" data-series="throughput.fresh_prefill_tps" style="--series:#12a594" type="button" aria-pressed="true">Fresh prefill</button>
+              <button class="legend-toggle" data-series="throughput.cached_local_tps" style="--series:#de7b32" type="button" aria-pressed="true">Local cache</button>
+              <button class="legend-toggle" data-series="throughput.external_cache_tps" style="--series:#4c72d9" type="button" aria-pressed="true">External / LMCache</button>
             </div>
             <div class="panel-actions">
               <span class="drag-handle" draggable="true" title="Drag to rearrange this chart" aria-label="Drag to rearrange this chart">Move</span>
@@ -137,9 +137,9 @@
           <div class="panel-heading">
             <div><h3>Decode and MTP <small class="chart-model"></small></h3><p>Output, drafted tokens, and accepted draft tokens</p></div>
             <div class="legend">
-              <span style="--series:#d14f68">Decode</span>
-              <span style="--series:#7d5fc4">Drafted</span>
-              <span style="--series:#12a594">Accepted</span>
+              <button class="legend-toggle" data-series="throughput.decode_tps" style="--series:#d14f68" type="button" aria-pressed="true">Decode</button>
+              <button class="legend-toggle" data-series="speculative.draft_tps" style="--series:#7d5fc4" type="button" aria-pressed="true">Drafted</button>
+              <button class="legend-toggle" data-series="speculative.accepted_tps" style="--series:#12a594" type="button" aria-pressed="true">Accepted</button>
             </div>
             <div class="panel-actions">
               <span class="drag-handle" draggable="true" title="Drag to rearrange this chart" aria-label="Drag to rearrange this chart">Move</span>
@@ -158,9 +158,9 @@
           <div class="panel-heading">
             <div><h3>Cache <small class="chart-model"></small></h3><p>KV occupancy and prefix hit rates</p></div>
             <div class="legend">
-              <span style="--series:#12a594">KV used</span>
-              <span style="--series:#de7b32">Prefix hit</span>
-              <span style="--series:#4c72d9">External hit</span>
+              <button class="legend-toggle" data-series="cache.kv_usage_percent" style="--series:#12a594" type="button" aria-pressed="true">KV used</button>
+              <button class="legend-toggle" data-series="cache.prefix_hit_percent" style="--series:#de7b32" type="button" aria-pressed="true">Prefix hit</button>
+              <button class="legend-toggle" data-series="cache.external_prefix_hit_percent" style="--series:#4c72d9" type="button" aria-pressed="true">External hit</button>
             </div>
             <div class="panel-actions">
               <span class="drag-handle" draggable="true" title="Drag to rearrange this chart" aria-label="Drag to rearrange this chart">Move</span>
@@ -179,8 +179,8 @@
           <div class="panel-heading">
               <div><h3>Scheduler <small class="chart-model"></small></h3><p>Raw discrete running and queued request gauges</p></div>
             <div class="legend">
-              <span style="--series:#12a594">Running</span>
-              <span style="--series:#d14f68">Queued</span>
+              <button class="legend-toggle" data-series="requests.running" style="--series:#12a594" type="button" aria-pressed="true">Running</button>
+              <button class="legend-toggle" data-series="requests.waiting" style="--series:#d14f68" type="button" aria-pressed="true">Queued</button>
             </div>
             <div class="panel-actions">
               <span class="drag-handle" draggable="true" title="Drag to rearrange this chart" aria-label="Drag to rearrange this chart">Move</span>
