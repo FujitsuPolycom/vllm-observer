@@ -201,7 +201,16 @@ export class TimeSeriesChart {
 
   positionTooltip(localX, localY) {
     const rect = this.canvas.getBoundingClientRect();
-    const left = Math.min(Math.max(8, localX + 14), Math.max(8, rect.width - this.tooltip.offsetWidth - 8));
+    const tooltipWidth = this.tooltip.offsetWidth;
+    const gap = 14;
+    const maxLeft = Math.max(8, rect.width - tooltipWidth - 8);
+    const rightLeft = localX + gap;
+    const leftLeft = localX - tooltipWidth - gap;
+    const left = rightLeft <= maxLeft
+      ? Math.max(8, rightLeft)
+      : leftLeft >= 8
+        ? leftLeft
+        : maxLeft;
     const top = Math.min(Math.max(8, localY - 18), Math.max(8, rect.height - this.tooltip.offsetHeight - 8));
     this.tooltip.style.left = left + 'px';
     this.tooltip.style.top = top + 'px';
