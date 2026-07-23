@@ -8,10 +8,19 @@ services:
     environment:
       VLLM_OBSERVER_DOCKER: "1"
       VLLM_OBSERVER_LOG_TAIL: "320"
-      VLLM_OBSERVER_METRICS_URL: "${VLLM_OBSERVER_METRICS_URL:-}"
+      VLLM_OBSERVER_METRICS_HOST: "${VLLM_OBSERVER_METRICS_HOST:-host.docker.internal}"
+      VLLM_OBSERVER_SAMPLE_SECONDS: "${VLLM_OBSERVER_SAMPLE_SECONDS:-1}"
+      VLLM_OBSERVER_HISTORY_POINTS: "${VLLM_OBSERVER_HISTORY_POINTS:-3600}"
+      VLLM_OBSERVER_DATA_DIR: "/data"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - vllm-observer-data:/data
     read_only: true
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
+
+volumes:
+  vllm-observer-data:

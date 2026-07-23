@@ -1,96 +1,99 @@
 # vLLM Observer
 
-Drop-in, read-only observability for vLLM workloads. It discovers vLLM-like Docker containers, local log files, and mounted log directories, then presents live throughput, queue, KV-cache, LMCache, speculative decoding, and cache-transfer telemetry.
+Read-only observability for vLLM workloads. It discovers Docker containers, samples each workload's Prometheus endpoint on a server-owned clock, stores bounded rolling history, and displays throughput, cache, LMCache, MTP, scheduler, configuration, and logs.
 
-The project has no runtime dependencies beyond Python 3.11+. The dashboard is static and the collector uses only the Python standard library.
+The runtime requires Python 3.11 or newer and has no third-party Python dependencies. The dashboard uses native ES modules and HTML5 canvas.
 
-## Fastest Docker install
+## Docker Compose
 
 ```bash
-docker run -d --name vllm-observer \
-  --read-only --cap-drop=ALL --security-opt=no-new-privileges \
-  -p 8088:8088 \
-  -v /var/run/docker.sock:/var/run/docker.sock:ro \
-  ghcr.io/yourname/vllm-observer:latest
+git clone https://github.com/FujitsuPolycom/vllm-observer.git
+cd vllm-observer
+docker compose -f compose/docker-compose.yml up -d --build
 ```
 
 Open `http://localhost:8088`.
 
-Use **Minimal view** for a white, console-like layout with the most important values first. **Build Compose** downloads a ready-to-edit Compose file for the Docker deployment.
+The included Compose file:
 
-The Docker socket is optional but required for automatic container discovery. Docker grants broad authority to any process with socket access, even when the mount is marked read-only. For stricter isolation, disable Docker discovery and mount only log directories:
+- mounts the Docker socket for read-only discovery and log inspection;
+- reaches host-published vLLM ports through `host.docker.internal`;
+- retains 3,600 real samples per workload in a Docker volume;
+- samples Prometheus every second independently of browsers and API clients.
 
-```bash
-docker run -d --name vllm-observer \
-  --read-only --cap-drop=ALL --security-opt=no-new-privileges \
-  -e VLLM_OBSERVER_DOCKER=0 \
-  -e VLLM_OBSERVER_LOG_PATHS=/logs \
-  -v /path/to/vllm/logs:/logs:ro \
-  -p 8088:8088 \
-  ghcr.io/yourname/vllm-observer:latest
+Docker socket access is powerful even when mounted read-only. Protect the observer with a firewall, VPN, authentication proxy, or private network.
+
+## Metric endpoint resolution
+
+For each running container, the observer reads `PORT`, `VLLM_PORT`, or `--port` and requests:
+
+```text
+http://<VLLM_OBSERVER_METRICS_HOST>:<port>/metrics
 ```
 
-## Compose
+It compares Prometheus `model_name` labels with `SERVED_MODEL_NAME`. A mismatch is reported as `identity_mismatch`; metrics from the wrong model are never charted.
 
-Copy `compose/docker-compose.yml` beside your existing vLLM Compose file, adjust the log mount, and run:
-
-```bash
-docker compose up -d vllm-observer
-```
-
-The Compose example does not assume a container name. Discovery uses image, command, environment, labels, and service names containing `vllm`, `lmcache`, `sglang`, `triton`, or common model-serving terms. Set `VLLM_OBSERVER_CONTAINER_ALLOWLIST` when you want exact control.
-
-## Host install
+Use an explicit URL when automatic resolution is not possible:
 
 ```bash
-python3 -m observer.server
+VLLM_OBSERVER_METRICS_URL=http://model-host:8000/metrics
 ```
 
-Useful environment variables:
+Use a per-container URL when observing several endpoints. Replace punctuation in the container name with underscores and uppercase it:
+
+```bash
+VLLM_OBSERVER_METRICS_URL_MY_VLLM=http://model-host:8000/metrics
+```
+
+## HTTP API
+
+The container exposes a versioned, read-only JSON API on port `8088`.
+
+| Endpoint | Purpose |
+| --- | --- |
+| `/api/v1` | API discovery document |
+| `/api/v1/status` | Sampler cadence, persistence, and source status |
+| `/api/v1/instances` | Discovered containers and runtime configuration |
+| `/api/v1/instances/{name}/snapshot` | Latest verified telemetry point |
+| `/api/v1/instances/{name}/history?limit=900` | Rolling real-sample history |
+| `/api/v1/instances/{name}/logs` | Classified bounded log tail |
+| `/api/v1/instances/{name}/config` | Selected container details |
+
+API reads never trigger metric collection. One background sampler owns counter state, so multiple dashboards and API clients cannot alter the measured interval.
+
+## Configuration
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `VLLM_OBSERVER_PORT` | `8088` | HTTP listen port |
-| `VLLM_OBSERVER_HOST` | `0.0.0.0` | Listen address |
-| `VLLM_OBSERVER_DOCKER` | `1` | Discover Docker containers with the Docker CLI |
-| `VLLM_OBSERVER_LOG_PATHS` | empty | Comma-separated files/directories to read |
-| `VLLM_OBSERVER_CONTAINER_ALLOWLIST` | empty | Comma-separated exact container names |
-| `VLLM_OBSERVER_LOG_TAIL` | `320` | Maximum lines per container/file |
-| `VLLM_OBSERVER_REFRESH_SECONDS` | `3` | Dashboard polling interval |
-| `VLLM_OBSERVER_METRICS_URL` | empty | Prometheus `/metrics` URL for accurate live counter deltas |
+| `VLLM_OBSERVER_HOST` | `0.0.0.0` | HTTP listen address |
+| `VLLM_OBSERVER_DOCKER` | `1` | Enable Docker discovery |
+| `VLLM_OBSERVER_LOG_PATHS` | empty | Comma-separated files or directories |
+| `VLLM_OBSERVER_CONTAINER_ALLOWLIST` | empty | Exact container names to include |
+| `VLLM_OBSERVER_LOG_TAIL` | `320` | Maximum lines returned per workload |
+| `VLLM_OBSERVER_METRICS_HOST` | `127.0.0.1` | Host used with an auto-discovered port |
+| `VLLM_OBSERVER_METRICS_URL` | empty | Explicit single-endpoint Prometheus URL |
+| `VLLM_OBSERVER_METRICS_URL_<INSTANCE>` | empty | Per-container Prometheus URL |
+| `VLLM_OBSERVER_SAMPLE_SECONDS` | `1` | Real server-side sample cadence |
+| `VLLM_OBSERVER_HISTORY_POINTS` | `3600` | Samples retained per workload |
+| `VLLM_OBSERVER_DATA_DIR` | empty | Directory for durable rolling history |
 
-For the most accurate live rates, point the observer at the vLLM Prometheus endpoint:
+## Metrics
 
-```bash
-VLLM_OBSERVER_METRICS_URL=http://spark-edfd:18006/metrics python3 -m observer.server
-```
+The Prometheus sampler calculates:
 
-The dashboard will use Prometheus when available and show `LIVE · Prometheus counter deltas`. It calculates total ingest, cached ingest, fresh prefill, decode, cache-hit percentage, and queue depth. The logger-derived values remain available as a `LOG SNAPSHOT` fallback.
+- fresh prefill, local prefix-cache reuse, external KV transfer, total cached ingest, and decode tokens per second;
+- KV-cache occupancy, local prefix hit rate, and external prefix hit rate;
+- MTP draft rate, accepted token rate, and acceptance percentage;
+- running, waiting, and completed requests.
 
-## Safety model
-
-The observer is deliberately boring:
-
-- no Docker commands that create, stop, delete, exec into, or modify containers;
-- no shell execution based on log content;
-- no writes to discovered paths;
-- bounded subprocess timeouts and log sizes;
-- sensitive environment values and common bearer/token/password patterns are redacted;
-- the observer excludes its own container by name and image;
-- filesystem discovery is opt-in, bounded to configured paths, and read-only;
-- absent metrics are shown as `not reported`, never fabricated.
-
-This is an observer, not a security boundary. Protect the dashboard with a reverse proxy, firewall, VPN, or authentication before exposing it beyond a trusted network.
-
-## Current scope
-
-The parser recognizes common vLLM logger output plus LMCache, speculative decoding/MTP, CKV/cache-transfer, request queue, and prefix-cache lines. Native Prometheus support is planned as a higher-fidelity source than log parsing.
+Logger output is displayed separately and is never used as a performance fallback. Chart interpolation only adds visual points between real server samples; the real points remain visible.
 
 ## Development
 
 ```bash
-python3 -m unittest discover -s tests -v
-python3 -m observer.server
+python -m unittest discover -s tests -v
+python -m observer.server
 ```
 
-Then visit `http://127.0.0.1:8088`.
+Then open `http://127.0.0.1:8088`.

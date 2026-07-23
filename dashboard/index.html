@@ -1,19 +1,163 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>vLLM Observer</title><link rel="stylesheet" href="/styles.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>vLLM Observer</title>
+  <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <header><a class="brand" href="/"><span class="mark"></span>vLLM Observer</a><div class="header-actions"><button id="styleToggle" type="button">Minimal view</button><button id="compose" type="button">Build Compose</button><span id="status">connecting</span></div></header>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="vLLM Observer home">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span>vLLM Observer</span>
+    </a>
+    <div class="top-actions">
+      <span id="connection" class="connection pending"><span></span>Connecting</span>
+      <button id="themeButton" class="button secondary" type="button">Minimal</button>
+      <button id="pauseButton" class="button secondary" type="button">Pause</button>
+      <button id="composeButton" class="button primary" type="button">Build Compose</button>
+    </div>
+  </header>
+
   <main>
-    <section class="hero"><div><h1>vLLM Observer</h1></div><div class="sample"><span>LAST SAMPLE</span><strong id="sampleTime">waiting</strong></div></section>
-    <div class="toolbar"><label for="instance">WORKLOAD</label><select id="instance"><option>discovering...</option></select><button id="pause" type="button">Pause</button><span id="refresh">refreshing every 3s</span></div>
-    <section class="section"><div class="section-head"><div><h2>Model and runtime configuration</h2></div><span id="configMeta">waiting</span></div><div id="config" class="config-grid"></div></section>
-    <section class="section"><div class="section-head"><div><h2>Live performance</h2></div><span id="metricMeta">Prometheus only</span></div><div id="metrics" class="metrics"></div><div class="chart-panel"><div class="chart-toolbar"><strong>Prometheus rate history</strong><label for="smoothness">Virtual points <output id="smoothnessValue">6</output></label><input id="smoothness" type="range" min="0" max="20" value="6" step="1"><label for="historyPosition">History <output id="historyLabel">latest</output></label><input id="historyPosition" type="range" min="0" max="0" value="0" step="1" disabled></div><div id="liveChart" class="live-chart"><div class="empty">Waiting for Prometheus samples.</div></div><div class="chart-legend"><span class="legend-fresh">Fresh prefill</span><span class="legend-cached">Cached ingest</span><span class="legend-decode">Decode</span></div></div></section>
-    <section class="section"><div class="section-head"><div><h2>Subsystem logs</h2></div><span id="logMeta">waiting</span></div><div id="logs" class="logs"></div></section>
+    <section class="control-band" aria-label="Workload selection">
+      <div class="workload-control">
+        <label for="instanceSelect">Workload</label>
+        <select id="instanceSelect"><option value="">Discovering workloads...</option></select>
+      </div>
+      <dl class="source-facts">
+        <div><dt>Metrics source</dt><dd id="sourceUrl">Resolving</dd></div>
+        <div><dt>Endpoint model</dt><dd id="sourceModel">Waiting</dd></div>
+        <div><dt>Real sample</dt><dd id="sampleCadence">Waiting</dd></div>
+        <div><dt>Last collected</dt><dd id="lastCollected">Waiting</dd></div>
+      </dl>
+    </section>
+
+    <div id="diagnostic" class="diagnostic waiting" role="status">
+      Waiting for the server sampler to produce two real counter readings.
+    </div>
+
+    <section class="section" aria-labelledby="performanceTitle">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Prometheus counter deltas</p>
+          <h1 id="performanceTitle">Live performance</h1>
+        </div>
+        <span id="historyMeta" class="section-meta">Loading server history</span>
+      </div>
+      <div id="metricCards" class="metric-grid"></div>
+    </section>
+
+    <section class="section chart-section" aria-labelledby="timelineTitle">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Real samples + visual interpolation</p>
+          <h2 id="timelineTitle">Telemetry timeline</h2>
+        </div>
+        <div class="chart-controls">
+          <label for="smoothness">Points between samples <output id="smoothnessValue">6</output></label>
+          <input id="smoothness" type="range" min="0" max="20" step="1" value="6">
+          <label for="windowSize">Window</label>
+          <select id="windowSize">
+            <option value="60">1 minute</option>
+            <option value="300" selected>5 minutes</option>
+            <option value="900">15 minutes</option>
+            <option value="3600">1 hour</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="timeline-control">
+        <label for="historyPosition">History position</label>
+        <input id="historyPosition" type="range" min="0" max="0" value="0" step="1" disabled>
+        <output id="historyPositionLabel">Live edge</output>
+      </div>
+
+      <div class="chart-grid">
+        <article class="chart-panel chart-wide">
+          <div class="panel-heading">
+            <div><h3>Input and cache pipeline</h3><p>Fresh compute, local prefix reuse, and external KV transfer</p></div>
+            <div class="legend">
+              <span style="--series:#12a594">Fresh prefill</span>
+              <span style="--series:#de7b32">Local cache</span>
+              <span style="--series:#4c72d9">External / LMCache</span>
+            </div>
+          </div>
+          <canvas id="throughputChart" aria-label="Token throughput history"></canvas>
+        </article>
+
+        <article class="chart-panel">
+          <div class="panel-heading">
+            <div><h3>Decode and MTP</h3><p>Output, drafted tokens, and accepted draft tokens</p></div>
+            <div class="legend">
+              <span style="--series:#d14f68">Decode</span>
+              <span style="--series:#7d5fc4">Drafted</span>
+              <span style="--series:#12a594">Accepted</span>
+            </div>
+          </div>
+          <canvas id="decodeChart" aria-label="Decode and speculative throughput history"></canvas>
+        </article>
+
+        <article class="chart-panel">
+          <div class="panel-heading">
+            <div><h3>Cache</h3><p>KV occupancy and prefix hit rates</p></div>
+            <div class="legend">
+              <span style="--series:#12a594">KV used</span>
+              <span style="--series:#de7b32">Prefix hit</span>
+              <span style="--series:#4c72d9">External hit</span>
+            </div>
+          </div>
+          <canvas id="cacheChart" aria-label="Cache history"></canvas>
+        </article>
+
+        <article class="chart-panel">
+          <div class="panel-heading">
+            <div><h3>Scheduler</h3><p>Running and queued requests</p></div>
+            <div class="legend">
+              <span style="--series:#12a594">Running</span>
+              <span style="--series:#d14f68">Queued</span>
+            </div>
+          </div>
+          <canvas id="requestChart" aria-label="Request scheduler history"></canvas>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="capabilitiesTitle">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">What the endpoint actually exposes</p>
+          <h2 id="capabilitiesTitle">Cache and decoding capabilities</h2>
+        </div>
+      </div>
+      <div id="capabilities" class="capability-grid"></div>
+    </section>
+
+    <section class="section split-section">
+      <div>
+        <div class="section-heading compact">
+          <div><p class="eyebrow">Docker inspect</p><h2>Model and runtime</h2></div>
+          <span id="configMeta" class="section-meta"></span>
+        </div>
+        <div id="configuration" class="configuration"></div>
+      </div>
+      <div>
+        <div class="section-heading compact">
+          <div><p class="eyebrow">Read-only tail</p><h2>Subsystem logs</h2></div>
+          <span id="logMeta" class="section-meta"></span>
+        </div>
+        <div id="logs" class="logs"></div>
+      </div>
+    </section>
   </main>
-  <footer>vLLM Observer · no writes, no container mutations, no fabricated metrics</footer>
-  <script src="/app.js?v=d078607"></script><script>setTimeout(()=>{if(typeof state!=='undefined'&&state.selected)renderConfig(state.instances.find(x=>x.name===state.selected))},500)</script><script src="/display.js?v=1"></script>
+
+  <footer>
+    <span>vLLM Observer API <a href="/api/v1">/api/v1</a></span>
+    <span>No container mutations. No logger-rate fallback.</span>
+  </footer>
+
+  <script type="module" src="/js/app.js"></script>
 </body>
 </html>

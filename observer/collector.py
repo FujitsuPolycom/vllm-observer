@@ -6,14 +6,8 @@ import json
 import os
 import re
 import subprocess
-import time
-from urllib.error import URLError
-from urllib.request import Request, urlopen
 from pathlib import Path
 from typing import Any
-
-from .prometheus import parse, rates
-
 
 ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 SECRET_RE = re.compile(r"(?i)(bearer\s+|(?:api[_-]?key|token|password|secret)\s*[=:]\s*)\S+")
@@ -32,7 +26,7 @@ class Collector:
         self.allowlist = {x.strip() for x in os.getenv("VLLM_OBSERVER_CONTAINER_ALLOWLIST", "").split(",") if x.strip()}
         self.paths = [Path(x.strip()) for x in os.getenv("VLLM_OBSERVER_LOG_PATHS", "").split(",") if x.strip()]
         self.metrics_url = os.getenv("VLLM_OBSERVER_METRICS_URL", "").strip()
-        self.metric_state: dict[str, tuple[float, dict[str, float]]] = {}
+        self.metrics_host = os.getenv("VLLM_OBSERVER_METRICS_HOST", "127.0.0.1").strip()
 
     def _run(self, args: list[str], timeout: int = 8) -> subprocess.CompletedProcess[str]:
         return subprocess.run(args, capture_output=True, text=True, timeout=timeout, check=False)
@@ -58,7 +52,12 @@ class Collector:
         return any(term in haystack for term in VLLM_TERMS)
 
     def _env(self, values: list[str] | None) -> dict[str, str]:
-        prefixes = ("VLLM_", "LMCACHE_", "KV_", "MODEL", "SERVED_MODEL", "MAX_", "TP", "DCP", "MTP", "PORT", "QUANT", "MOE", "CUDA_", "NCCL_")
+        prefixes = (
+            "VLLM_", "LMCACHE_", "KV_", "MODEL", "SERVED_MODEL", "MAX_", "TP", "DCP",
+            "MTP", "PORT", "QUANT", "MOE", "CUDA_", "NCCL_", "GPU_", "GPUS", "LOAD_",
+            "GRAPH", "ALLREDUCE_", "ONLINE_", "B12X_", "INSTANTTENSOR_", "FLASHINFER_",
+            "TORCH_", "XDG_", "F8_",
+        )
         selected = {}
         for entry in values or []:
             key, _, value = entry.partition("=")
@@ -96,10 +95,14 @@ class Collector:
             "mounts": [{"source": mount.get("Source", ""), "destination": mount.get("Destination", ""), "mode": mount.get("Mode", "ro")} for mount in info.get("Mounts", [])],
         }
 
-    def docker_instances(self) -> list[dict[str, Any]]:
+    def docker_instances(self, include_stopped: bool = True) -> list[dict[str, Any]]:
         if not self.docker_enabled:
             return []
-        result = self._run(["docker", "ps", "-a", "--format", "{{.Names}}"], timeout=8)
+        args = ["docker", "ps"]
+        if include_stopped:
+            args.append("-a")
+        args.extend(["--format", "{{.Names}}"])
+        result = self._run(args, timeout=8)
         if result.returncode:
             return []
         found = []
@@ -123,6 +126,9 @@ class Collector:
     def instances(self) -> list[dict[str, Any]]:
         return self.docker_instances() + self.file_instances()
 
+    def running_instances(self) -> list[dict[str, Any]]:
+        return self.docker_instances(include_stopped=False) + self.file_instances()
+
     def logs(self, instance: str) -> list[str]:
         if not IDENT_RE.fullmatch(instance):
             raise ValueError("invalid instance")
@@ -136,61 +142,35 @@ class Collector:
             return [clean(line) for line in path.read_text(errors="replace").splitlines()[-self.tail:] if line.strip()]
         raise ValueError("unknown instance")
 
-    def _metrics_url_for(self, instance: str) -> str:
+    def metrics_url_for(self, instance: str, record: dict[str, Any] | None = None) -> str:
         configured = os.getenv(f"VLLM_OBSERVER_METRICS_URL_{re.sub(r'[^A-Za-z0-9]', '_', instance).upper()}", "").strip()
-        return configured or self.metrics_url
-
-    def live_metrics(self, instance: str) -> dict[str, Any]:
-        """Fetch Prometheus counters and return one-second-style counter deltas."""
-        url = self._metrics_url_for(instance)
-        if not url:
-            return {"available": False, "reason": "configure VLLM_OBSERVER_METRICS_URL"}
+        if configured:
+            return configured
+        if self.metrics_url:
+            return self.metrics_url
+        record = record or next((item for item in self.docker_instances() if item["name"] == instance), None)
+        if not record or not record.get("running"):
+            return ""
+        env = record.get("env", {})
+        port = env.get("PORT") or env.get("VLLM_PORT")
+        if not port:
+            command = record.get("command", "")
+            match = re.search(r"(?:^|\s)--port(?:=|\s+)(\d{1,5})(?:\s|$)", command)
+            port = match.group(1) if match else ""
         try:
-            request = Request(url, headers={"Accept": "text/plain"})
-            with urlopen(request, timeout=3) as response:
-                samples = parse(response.read().decode("utf-8", errors="replace"))
-        except (OSError, URLError, TimeoutError, ValueError) as error:
-            return {"available": False, "reason": str(error)}
-        now = time.monotonic()
-        previous = self.metric_state.get(instance)
-        self.metric_state[instance] = (now, samples)
-        if not previous:
-            return {"available": False, "warming": True, "reason": "waiting for second counter sample"}
-        elapsed = now - previous[0]
-        delta = rates(previous[1], samples, elapsed)
-        def value(*names: str) -> float | None:
-            for name in names:
-                if name in delta:
-                    return delta[name]
-            return None
-        prompt = value("vllm_prompt_tokens_total", "vllm:prompt_tokens_total")
-        cached = value("vllm_prompt_tokens_cached_total", "vllm:prompt_tokens_cached_total")
-        generation = value("vllm_generation_tokens_total", "vllm:generation_tokens_total")
-        result: dict[str, Any] = {"available": True, "sample_seconds": round(elapsed, 2), "source": url}
-        if prompt is not None:
-            result["ingest_tokens_per_second"] = prompt
-        if cached is not None:
-            result["cached_ingest_tokens_per_second"] = cached
-        if prompt is not None and cached is not None:
-            result["fresh_prefill_tokens_per_second"] = max(0.0, prompt - cached)
-            result["cache_hit_percent"] = (cached / prompt * 100) if prompt > 0 else 0.0
-        if generation is not None:
-            result["decode_tokens_per_second"] = generation
-        for key, names in {
-            "running_requests": ("vllm_num_requests_running", "vllm:num_requests_running"),
-            "waiting_requests": ("vllm_num_requests_waiting", "vllm:num_requests_waiting"),
-        }.items():
-            for name in names:
-                if name in samples:
-                    result[key] = samples[name]
-                    break
-        computed = value("vllm_request_prefill_kv_computed_tokens_sum")
-        prefill_time = value("vllm_request_prefill_time_seconds_sum")
-        if computed is not None:
-            result["completed_prefill_tokens_per_second"] = computed
-        if computed is not None and prefill_time and prefill_time > 0:
-            result["completed_prefill_tokens_per_second"] = computed / prefill_time
-        return result
+            port_number = int(port)
+        except (TypeError, ValueError):
+            return ""
+        if not 1 <= port_number <= 65535:
+            return ""
+        return f"http://{self.metrics_host}:{port_number}/metrics"
+
+    def expected_model_for(self, instance: str, record: dict[str, Any] | None = None) -> str:
+        record = record or next((item for item in self.docker_instances() if item["name"] == instance), None)
+        if not record:
+            return ""
+        env = record.get("env", {})
+        return env.get("SERVED_MODEL_NAME") or Path(env.get("MODEL", "")).name
 
     def compose_template(self, instance: str) -> str:
         """Build a best-effort, editable Compose recreation of a discovered container."""
