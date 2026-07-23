@@ -1,0 +1,16 @@
+services:
+  vllm-observer:
+    build: ..
+    container_name: vllm-observer
+    restart: unless-stopped
+    ports:
+      - "8088:8088"
+    environment:
+      VLLM_OBSERVER_DOCKER: "1"
+      VLLM_OBSERVER_LOG_TAIL: "320"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true

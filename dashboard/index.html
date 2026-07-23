@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>vLLM Observer</title><link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header><a class="brand" href="/"><span class="mark"></span>vLLM Observer</a><div class="header-actions"><button id="styleToggle" type="button">Minimal view</button><button id="compose" type="button">Build Compose</button><span id="status">connecting</span></div></header>
+  <main>
+    <section class="hero"><div><p class="eyebrow">read-only telemetry</p><h1>Inference visibility without the guesswork.</h1><p class="lede">A portable dashboard for vLLM, LMCache, speculative decoding, and cache-transfer workloads.</p></div><div class="sample"><span>LAST SAMPLE</span><strong id="sampleTime">waiting</strong></div></section>
+    <div class="toolbar"><label for="instance">WORKLOAD</label><select id="instance"><option>discovering...</option></select><button id="pause" type="button">Pause</button><span id="refresh">refreshing every 3s</span></div>
+    <section class="section"><div class="section-head"><div><p class="eyebrow">latest observed</p><h2>Performance</h2></div><span id="metricMeta">waiting for metrics</span></div><div id="metrics" class="metrics"></div></section>
+    <section class="section"><div class="section-head"><div><p class="eyebrow">delineated stream</p><h2>Subsystem logs</h2></div><span id="logMeta">waiting</span></div><div id="logs" class="logs"></div></section>
+  </main>
+  <footer>vLLM Observer · no writes, no container mutations, no fabricated metrics</footer>
+  <script src="/app.js"></script>
+</body>
+</html>
