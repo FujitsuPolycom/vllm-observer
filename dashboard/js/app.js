@@ -217,6 +217,7 @@ async function selectWorkload(name) {
   element('exportReport').disabled = true;
   element('clearPin').disabled = true;
   element('logFocus').textContent = 'Live tail';
+  element('runtimeSummary').textContent = 'Runtime config loading';
   element('pinNotice').hidden = true;
   element('logs').classList.remove('is-focused');
   renderInstances(state.instances, state.selected);

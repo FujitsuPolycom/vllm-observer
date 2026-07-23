@@ -79,9 +79,31 @@ export function renderSnapshot(point) {
 export function renderConfiguration(item) {
   if (!item) {
     element('configuration').innerHTML = '<div class="empty">No container selected.</div>';
+    element('runtimeSummary').textContent = 'Runtime config unavailable';
     return;
   }
   const environment = item.env || {};
+  const command = String(item.command || '');
+  const value = (keys, flags = []) => {
+    const fromEnvironment = keys.map(key => environment[key]).find(entry => entry !== undefined && entry !== '');
+    if (fromEnvironment !== undefined) return fromEnvironment;
+    for (const flag of flags) {
+      const match = command.match(new RegExp(`(?:^|\\s)${flag}(?:=|\\s+)([^\\s]+)`));
+      if (match) return match[1].replace(/^['"]|['"]$/g, '');
+    }
+    return undefined;
+  };
+  const runtime = [
+    ['MODEL', value(['SERVED_MODEL_NAME', 'MODEL', 'MODEL_NAME'], ['--served-model-name', '--model']) || item.image || 'unknown'],
+    ['TP', value(['TP', 'TENSOR_PARALLEL_SIZE'], ['--tensor-parallel-size'])],
+    ['DCP', value(['DCP', 'DATA_PARALLEL_SIZE'], ['--data-parallel-size', '--decode-context-parallel-size'])],
+    ['MTP', value(['MTP', 'NUM_SPECULATIVE_TOKENS', 'SPECULATIVE_CONFIG'], ['--speculative-config', '--num-speculative-tokens', '--speculative-model'])],
+    ['GPUs', value(['GPUS', 'GPU_COUNT', 'CUDA_VISIBLE_DEVICES'])],
+    ['Context', value(['MAX_MODEL_LEN', 'MAX_SEQ_LEN', 'MAX_CONTEXT_LEN'], ['--max-model-len', '--max-seq-len-to-capture'])],
+    ['Dtype', value(['DTYPE', 'TORCH_DTYPE', 'QUANTIZATION'], ['--dtype', '--quantization'])],
+    ['GPU mem', value(['GPU_MEMORY_UTILIZATION'], ['--gpu-memory-utilization'])],
+  ].filter(([, entry]) => entry !== undefined);
+  element('runtimeSummary').innerHTML = runtime.map(([label, entry]) => `<span title="${escapeHtml(label)}">${escapeHtml(label)}: <b>${escapeHtml(entry)}</b></span>`).join('');
   const definitions = [
     ['Model', key => ['MODEL', 'MODEL_FAMILY', 'SERVED_MODEL_NAME', 'QUANTIZATION', 'LOAD_FORMAT', 'MOE_MODE'].includes(key)],
     ['Serving', key => key === 'PORT' || key === 'GRAPH' || key.startsWith('MAX_')],
