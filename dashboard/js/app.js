@@ -22,6 +22,20 @@ const state = {
   chartOrder: loadChartOrder(),
 };
 
+function loadColorMode() {
+  try { return localStorage.getItem('vllm-observer:color-mode') === 'dark' ? 'dark' : 'light'; } catch (error) { return 'light'; }
+}
+
+function applyColorMode(mode) {
+  const dark = mode === 'dark';
+  document.body.classList.toggle('dark', dark);
+  document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+  element('colorButton').textContent = dark ? 'Light' : 'Dark';
+  element('colorButton').setAttribute('aria-pressed', String(dark));
+  try { localStorage.setItem('vllm-observer:color-mode', dark ? 'dark' : 'light'); } catch (error) { /* optional preference */ }
+  Object.values(charts).forEach(chart => chart.draw());
+}
+
 function loadChartOrder() {
   const defaultOrder = ['throughput', 'decode', 'cache', 'requests'];
   try {
@@ -289,6 +303,9 @@ element('themeButton').addEventListener('click', () => {
   element('themeButton').textContent = document.body.classList.contains('minimal') ? 'Rich' : 'Minimal';
   Object.values(charts).forEach(chart => chart.draw());
 });
+element('colorButton').addEventListener('click', () => {
+  applyColorMode(document.body.classList.contains('dark') ? 'light' : 'dark');
+});
 element('composeButton').addEventListener('click', () => {
   if (!state.selected) return;
   const link = document.createElement('a');
@@ -342,6 +359,7 @@ element('exportReport').addEventListener('click', () => {
 });
 
 setupChartInteractions();
+applyColorMode(loadColorMode());
 element('timezoneSelect').options[0].textContent = `Browser local (${localTimezone()})`;
 await loadInstances();
 await loadSnapshot();
