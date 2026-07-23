@@ -19,7 +19,7 @@ const state = {
   focusTimestamp: null,
   crosshair: true,
   syncCrosshair: false,
-  bridgeGaps: false,
+  bridgeGaps: true,
   chartOrder: loadChartOrder(),
 };
 

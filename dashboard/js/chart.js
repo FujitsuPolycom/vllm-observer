@@ -86,7 +86,7 @@ export class TimeSeriesChart {
     this.hoverTimestamp = null;
     this.crosshairEnabled = true;
     this.gapLimit = 5000;
-    this.bridgeGaps = false;
+    this.bridgeGaps = true;
     this.tooltipAnchor = null;
     this.tooltip = document.createElement('div');
     this.tooltip.className = 'chart-tooltip';
