@@ -209,7 +209,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 }
 .chart-panel.is-expanded canvas { height: calc(100vh - 180px); min-height: 360px; }
 .panel-actions { display: flex; align-items: center; justify-content: end; gap: 5px; margin-left: auto; }
-.drag-handle, .chart-move, .chart-expand {
+.drag-handle, .chart-move, .chart-pause, .chart-expand {
   min-height: 28px;
   border: 1px solid var(--line);
   border-radius: 4px;
@@ -221,8 +221,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .chart-move { width: 28px; padding: 0; font-size: 14px; }
 .drag-handle { display: inline-flex; align-items: center; cursor: grab; user-select: none; }
 .drag-handle:active { cursor: grabbing; }
-.chart-move, .chart-expand { cursor: pointer; }
-.chart-move:hover, .chart-expand:hover { border-color: var(--accent); color: var(--accent-dark); }
+.chart-move, .chart-pause, .chart-expand { cursor: pointer; }
+.chart-pause { display: none; cursor: pointer; }
+.chart-panel.is-expanded .chart-pause { display: inline-flex; }
+.chart-move:hover, .chart-pause:hover, .chart-expand:hover { border-color: var(--accent); color: var(--accent-dark); }
 body.chart-expanded { overflow: hidden; }
 .panel-heading { display: flex; justify-content: space-between; gap: 16px; padding: 10px 12px 5px; }
 .panel-heading p { margin: 4px 0 0; color: var(--muted); font-size: 11px; }

@@ -70,6 +70,7 @@ function setupChartInteractions() {
   grid.querySelectorAll('[data-chart-panel]').forEach(panel => {
     const name = panel.dataset.chartPanel;
     panel.querySelectorAll('.chart-move').forEach(button => button.addEventListener('click', () => moveChart(name, Number(button.dataset.move))));
+    panel.querySelector('.chart-pause').addEventListener('click', togglePaused);
     panel.querySelector('.chart-expand').addEventListener('click', event => expandChart(panel, event.currentTarget));
     panel.querySelector('.drag-handle').addEventListener('dragstart', event => {
       draggedName = name;
@@ -111,7 +112,7 @@ function setupChartInteractions() {
 
 function syncHover(timestamp) {
   if (!state.syncCrosshair) return;
-  Object.values(charts).forEach(chart => chart.setHoverTimestamp(timestamp));
+  Object.values(charts).forEach(chart => chart.setHoverTimestamp(timestamp, true));
 }
 
 function clearHover() {
@@ -272,6 +273,7 @@ function togglePaused() {
   state.paused = !state.paused;
   element('pauseButton').textContent = state.paused ? 'Resume' : 'Pause';
   element('timelinePause').textContent = state.paused ? 'Resume updates' : 'Pause updates';
+  document.querySelectorAll('.chart-pause').forEach(button => { button.textContent = state.paused ? 'Resume' : 'Pause'; });
   setConnection(state.paused ? 'pending' : 'ok', state.paused ? 'Paused' : 'Live');
   if (!state.paused) loadSnapshot();
 }
