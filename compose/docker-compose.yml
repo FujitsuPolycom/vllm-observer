@@ -8,6 +8,7 @@ services:
     environment:
       VLLM_OBSERVER_DOCKER: "1"
       VLLM_OBSERVER_LOG_TAIL: "320"
+      VLLM_OBSERVER_METRICS_URL: "${VLLM_OBSERVER_METRICS_URL:-}"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     read_only: true

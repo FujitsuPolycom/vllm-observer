@@ -8,6 +8,7 @@ services:
     environment:
       VLLM_OBSERVER_DOCKER: "0"
       VLLM_OBSERVER_LOG_PATHS: /logs
+      VLLM_OBSERVER_METRICS_URL: "${VLLM_OBSERVER_METRICS_URL:-}"
     volumes:
       - ./logs:/logs:ro
     read_only: true
