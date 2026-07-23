@@ -177,7 +177,19 @@ export class TimeSeriesChart {
       return;
     }
 
-    const max = this.options.max || Math.max(1, ...available) * 1.12;
+    let max = this.options.max || Math.max(1, ...available) * 1.12;
+    let yTicks = [0, 1, 2, 3, 4].map(line => max * line / 4);
+    if (this.options.discrete) {
+      const observedMax = Math.max(1, Math.ceil(Math.max(...available)));
+      if (observedMax <= 8) {
+        max = observedMax;
+        yTicks = Array.from({ length: max + 1 }, (_, value) => value);
+      } else {
+        const step = Math.ceil(observedMax / 4);
+        max = step * 4;
+        yTicks = [0, step, step * 2, step * 3, max];
+      }
+    }
     const minTime = this.points[0]?.timestamp || Date.now();
     const maxTime = this.points.at(-1)?.timestamp || minTime + 1000;
     const timeSpan = Math.max(1000, maxTime - minTime);
@@ -201,15 +213,14 @@ export class TimeSeriesChart {
     context.font = '11px ui-monospace, monospace';
     context.lineWidth = 1;
     context.textAlign = 'right';
-    for (let line = 0; line <= 4; line += 1) {
-      const value = max * line / 4;
+    yTicks.forEach(value => {
       const lineY = y(value);
       context.beginPath();
       context.moveTo(margin.left, lineY);
       context.lineTo(width - margin.right, lineY);
       context.stroke();
-      context.fillText(this.options.percent ? `${value.toFixed(0)}%` : compact(value), margin.left - 8, lineY + 4);
-    }
+      context.fillText(this.options.percent ? `${value.toFixed(0)}%` : this.options.discrete ? String(value) : compact(value), margin.left - 8, lineY + 4);
+    });
 
     context.textAlign = 'center';
     [0, 0.5, 1].forEach(position => {
