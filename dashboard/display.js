@@ -1,15 +1,24 @@
 /* Final display layer: keep live counter rates and logger snapshots visible together. */
+const smoothedLive = {};
 function renderMetrics(values, live) {
     const cards = [];
-    const add = (key, label, value, note, unit) => {
-        if (value !== undefined && value !== null) cards.push({ key, label, value, note, unit });
+    const add = (key, label, value, note, unit, smooth = false) => {
+        if (value !== undefined && value !== null) {
+            if (smooth && Number.isFinite(Number(value))) {
+                const current = Number(value);
+                smoothedLive[key] = smoothedLive[key] === undefined ? current : smoothedLive[key] + (current - smoothedLive[key]) * 0.35;
+                value = smoothedLive[key];
+                note = `${note} · smoothed`;
+            }
+            cards.push({ key, label, value, note, unit });
+        }
     };
     const liveAvailable = live && live.available;
     if (liveAvailable) {
-        add('fresh_prefill_tokens_per_second', 'Fresh prefill', live.fresh_prefill_tokens_per_second, 'LIVE · Prometheus counter delta', 'tok/s');
-        add('cached_ingest_tokens_per_second', 'Cached ingest', live.cached_ingest_tokens_per_second, 'LIVE · Prometheus counter delta', 'tok/s');
-        add('decode_tokens_per_second', 'Decode', live.decode_tokens_per_second, 'LIVE · Prometheus counter delta', 'tok/s');
-        add('cache_hit_percent', 'Cache hit', live.cache_hit_percent, 'LIVE · Prometheus counter delta', '%');
+        add('fresh_prefill_tokens_per_second', 'Fresh prefill', live.fresh_prefill_tokens_per_second, 'LIVE · 1s counter delta', 'tok/s', true);
+        add('cached_ingest_tokens_per_second', 'Cached ingest', live.cached_ingest_tokens_per_second, 'LIVE · 1s counter delta', 'tok/s', true);
+        add('decode_tokens_per_second', 'Decode', live.decode_tokens_per_second, 'LIVE · 1s counter delta', 'tok/s', true);
+        add('cache_hit_percent', 'Cache hit', live.cache_hit_percent, 'LIVE · 1s counter delta', '%', true);
         add('running_requests', 'Running', live.running_requests, 'LIVE · current gauge', '');
         add('waiting_requests', 'Queued', live.waiting_requests, 'LIVE · current gauge', '');
     }

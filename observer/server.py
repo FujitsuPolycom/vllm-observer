@@ -88,6 +88,9 @@ class Handler(BaseHTTPRequestHandler):
                 instance = parse_qs(parsed.query).get("instance", [""])[0]
                 lines = collector.logs(instance)
                 return self._send({"instance": instance, "lines": lines, "metrics": metrics(lines), "live_metrics": collector.live_metrics(instance), "groups": classify(lines)})
+            if path == "/api/live":
+                instance = parse_qs(parsed.query).get("instance", [""])[0]
+                return self._send({"instance": instance, "live_metrics": collector.live_metrics(instance)})
             if path == "/app.js":
                 return self._file(DASHBOARD / "app.js", "text/javascript; charset=utf-8")
             if path == "/display.js":
