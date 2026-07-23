@@ -146,6 +146,7 @@ export class TimeSeriesChart {
     } else if (showTooltip) {
       this.renderTooltip();
       this.positionTooltip(this.canvas.clientWidth - 12, 12);
+      this.tooltip.hidden = false;
     }
     this.draw();
   }
