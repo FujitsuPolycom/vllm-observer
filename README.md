@@ -8,6 +8,22 @@ The runtime requires Python 3.11 or newer and has no third-party Python dependen
 
 ## Quick start (single vLLM container on the same host)
 
+## Dashboard
+
+The dashboard combines live Prometheus telemetry with request-level analytics, model/runtime configuration, and classified logs. Request Analytics includes TTFT and end-to-end latency percentiles, inter-token latency, queue/prefill/decode time, prompt/output sizes, cache/speculative decoding details, totals, preemptions, and uptime when the endpoint exposes those metrics.
+
+![Request analytics](docs/screenshots/request-analytics-dark.png)
+
+The telemetry timeline supports model-labeled charts, series toggles, crosshair values, synchronized hover, real/virtual sampling controls, historical navigation, point-pinned log context, report export, and chart reordering.
+
+![Telemetry timeline](docs/screenshots/telemetry-timeline-dark.png)
+
+Runtime flags and classified subsystem logs remain available below the charts for investigating the exact serving configuration and events around a selected point.
+
+![Configuration and logs](docs/screenshots/configuration-and-logs-dark.png)
+
+## Docker Compose
+
 ```bash
 git clone https://github.com/FujitsuPolycom/vllm-observer.git
 cd vllm-observer
