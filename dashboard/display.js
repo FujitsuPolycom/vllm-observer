@@ -1,4 +1,4 @@
-/* Final display layer: keep live counter rates and logger snapshots visible together. */
+/* Performance display intentionally uses Prometheus only. Log text is never used as a rate fallback. */
 const smoothedLive = {};
 function renderMetrics(values, live) {
     const cards = [];
@@ -22,10 +22,6 @@ function renderMetrics(values, live) {
         add('running_requests', 'Running', live.running_requests, 'LIVE · current gauge', '');
         add('waiting_requests', 'Queued', live.waiting_requests, 'LIVE · current gauge', '');
     }
-    add('logger_prompt', 'Logger prefill', values.prompt_tokens_per_second, 'LOG SNAPSHOT · rolling average', 'tok/s');
-    add('logger_generation', 'Logger generation', values.generation_tokens_per_second, 'LOG SNAPSHOT · rolling average', 'tok/s');
-    add('logger_kv', 'GPU KV cache', values.gpu_kv_cache_percent, 'LOG SNAPSHOT · current usage', '%');
-    add('logger_prefix', 'Prefix cache hit', values.prefix_cache_hit_percent, 'LOG SNAPSHOT · internal', '%');
     const signature = cards.map(card => card.key).join('|');
     const host = document.getElementById('metrics');
     const valueText = card => `${Number.isInteger(card.value) ? card.value : Number(card.value).toFixed(1)}${card.unit ? ` ${card.unit}` : ''}`;
@@ -35,5 +31,5 @@ function renderMetrics(values, live) {
         host.dataset.signature = signature;
         host.innerHTML = cards.length ? cards.map(card => `<article class="metric"><div class="metric-label">${esc(card.label)}</div><div class="metric-value">${esc(valueText(card))}</div><div class="metric-note">${esc(card.note)}</div></article>`).join('') : '<article class="metric unavailable"><div class="metric-label">Performance</div><div class="metric-value">not reported</div><div class="metric-note">no performance values were emitted</div></article>';
     }
-    document.getElementById('metricMeta').textContent = cards.length ? `${liveAvailable ? 'LIVE + LOGGER SNAPSHOT' : 'LOGGER SNAPSHOT'} · ${cards.length} values` : 'no metrics found';
+    document.getElementById('metricMeta').textContent = cards.length ? 'LIVE · Prometheus counter deltas · 1s samples' : 'waiting for Prometheus';
 }
