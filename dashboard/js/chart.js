@@ -102,11 +102,7 @@ export class TimeSeriesChart {
     });
     this.canvas.addEventListener('click', event => {
       if (!this.points.length || !this.options.onPoint) return;
-      const rect = this.canvas.getBoundingClientRect();
-      const fraction = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
-      const minTime = this.points[0]?.timestamp || Date.now();
-      const maxTime = this.points.at(-1)?.timestamp || minTime + 1000;
-      const target = minTime + (maxTime - minTime) * fraction;
+      const target = this.timestampAtClientX(event.clientX);
       const point = this.points.reduce((nearest, candidate) =>
         Math.abs(candidate.timestamp - target) < Math.abs(nearest.timestamp - target) ? candidate : nearest
       );
@@ -145,7 +141,7 @@ export class TimeSeriesChart {
       this.tooltip.hidden = true;
     } else if (showTooltip) {
       this.renderTooltip();
-      this.positionTooltip(this.canvas.clientWidth - 12, 12);
+      this.positionTooltip(this.localXForTimestamp(timestamp), 12);
       this.tooltip.hidden = false;
     }
     this.draw();
@@ -153,10 +149,20 @@ export class TimeSeriesChart {
 
   timestampAtClientX(clientX) {
     const rect = this.canvas.getBoundingClientRect();
-    const fraction = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const margin = { left: 52, right: 16 };
+    const plotWidth = Math.max(1, rect.width - margin.left - margin.right);
+    const fraction = Math.max(0, Math.min(1, (clientX - rect.left - margin.left) / plotWidth));
     const minTime = this.points[0]?.timestamp || Date.now();
     const maxTime = this.points.at(-1)?.timestamp || minTime + 1000;
     return minTime + (maxTime - minTime) * fraction;
+  }
+
+  localXForTimestamp(timestamp) {
+    const margin = { left: 52, right: 16 };
+    const minTime = this.points[0]?.timestamp || Date.now();
+    const maxTime = this.points.at(-1)?.timestamp || minTime + 1000;
+    const fraction = Math.max(0, Math.min(1, (timestamp - minTime) / Math.max(1, maxTime - minTime)));
+    return margin.left + fraction * Math.max(1, this.canvas.clientWidth - margin.left - margin.right);
   }
 
   handlePointerMove(event) {
