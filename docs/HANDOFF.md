@@ -16,13 +16,14 @@ Use this document to start a new LLM on the repository without reconstructing th
 
 Read these files first:
 
-1. `README.md` for Docker, mounted-log, native Python, API, and configuration instructions.
-2. `docs/FUTURE_IMPROVEMENTS.md` for the deep-dive resilience, security, topology, and model-friendliness review.
-3. `observer/collector.py` for discovery, log collection, redaction, endpoint resolution, and Compose draft generation.
-4. `observer/prometheus.py` for parsing, model identity checks, counter deltas, and normalized telemetry.
-5. `observer/sampler.py` for background sampling, persistence, retention, reports, and log archiving.
-6. `observer/server.py` for the HTTP API and static dashboard server.
-7. `dashboard/js/app.js` and `dashboard/js/chart.js` for polling, chart state, interpolation, crosshair, point selection, and reports.
+1. `docs/AGENT_GUIDE.md` for the compact LLM/coding-agent startup guide.
+2. `README.md` for Docker, mounted-log, native Python, API, and configuration instructions.
+3. `docs/FUTURE_IMPROVEMENTS.md` for the deep-dive resilience, security, topology, and model-friendliness review.
+4. `observer/collector.py` for discovery, log collection, redaction, endpoint resolution, and Compose draft generation.
+5. `observer/prometheus.py` for parsing, model identity checks, counter deltas, and normalized telemetry.
+6. `observer/sampler.py` for background sampling, persistence, retention, reports, and log archiving.
+7. `observer/server.py` for the HTTP API and static dashboard server.
+8. `dashboard/js/app.js` and `dashboard/js/chart.js` for polling, chart state, interpolation, crosshair, point selection, and reports.
 
 ## Local Verification
 
