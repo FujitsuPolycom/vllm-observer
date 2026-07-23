@@ -170,6 +170,7 @@ h3 { margin: 0; font-size: 14px; }
 .rate-controls .real-rate { grid-column: 1 / -1; display: flex; justify-content: space-between; gap: 12px; color: var(--muted); font: 10px ui-monospace, SFMono-Regular, Consolas, monospace; }
 .real-rate output { color: var(--accent-dark); font-weight: 800; }
 input[type="range"] { width: 100%; accent-color: var(--accent); }
+#historyPosition { direction: rtl; }
 .timeline-control {
   display: grid;
   grid-template-columns: auto minmax(180px, 1fr) 140px;
