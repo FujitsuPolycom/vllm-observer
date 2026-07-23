@@ -67,10 +67,16 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/health":
                 return self._send({"ok": True, "service": "vllm-observer"})
             if path == "/api/compose":
-                body = COMPOSE.encode()
+                instance = parse_qs(parsed.query).get("instance", [""])[0]
+                if instance:
+                    body = collector.compose_template(instance).encode()
+                    filename = f"{instance}.compose.yml"
+                else:
+                    body = COMPOSE.encode()
+                    filename = "vllm-observer.compose.yml"
                 self.send_response(200)
                 self.send_header("Content-Type", "text/yaml; charset=utf-8")
-                self.send_header("Content-Disposition", "attachment; filename=vllm-observer.compose.yml")
+                self.send_header("Content-Disposition", f"attachment; filename={filename}")
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
                 self.wfile.write(body)
