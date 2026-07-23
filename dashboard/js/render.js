@@ -62,6 +62,7 @@ export function renderSnapshot(point) {
     </article>`;
   });
   element('metricCards').innerHTML = cards.join('');
+  renderRequestAnalytics(point);
 
   const capabilities = point.capabilities || {};
   element('capabilities').innerHTML = capabilityDefinitions.map(([key, label, description]) => `
@@ -146,6 +147,39 @@ export function renderLogs(payload) {
   }
 }
 
+function renderRequestAnalytics(point) {
+  const analytics = point.request_analytics || {};
+  const totals = analytics.totals || {};
+  const metric = (path, scale = 1) => {
+    const value = path.split('.').reduce((current, key) => current?.[key], analytics);
+    return Number.isFinite(Number(value)) ? Number(value) * scale : null;
+  };
+  const display = (value, unit = '') => value === null ? 'not reported' : `${format(value)}${unit}`;
+  const cards = [
+    ['TTFT average', metric('time_to_first_token.average'), ' s'],
+    ['TTFT p99', metric('time_to_first_token.p99'), ' s'],
+    ['End-to-end p99', metric('end_to_end.p99'), ' s'],
+    ['Inter-token average', metric('inter_token.average') === null ? null : metric('inter_token.average') * 1000, ' ms'],
+    ['Prompt tokens', Number.isFinite(Number(totals.prompt_tokens)) ? Number(totals.prompt_tokens) : null, ''],
+    ['Generation tokens', Number.isFinite(Number(totals.generation_tokens)) ? Number(totals.generation_tokens) : null, ''],
+    ['Preemptions', Number.isFinite(Number(totals.preemptions)) ? Number(totals.preemptions) : null, ''],
+    ['Uptime', metric('uptime_seconds') === null ? null : formatDuration(metric('uptime_seconds')), ''],
+  ];
+  const cardMarkup = cards.map(([label, value, unit]) => `<article class="request-card"><span>${escapeHtml(label)}</span><strong>${typeof value === 'string' ? value : display(value, unit)}</strong></article>`).join('');
+  const anatomy = [
+    ['Queue', metric('queue_time.average'), '#dcb7e2'],
+    ['Prefill', metric('prefill_time.average'), '#a68be0'],
+    ['Decode', metric('decode_time.average'), '#4169d8'],
+  ].filter(([, value]) => value !== null);
+  const totalTime = anatomy.reduce((sum, [, value]) => sum + value, 0);
+  const anatomyMarkup = anatomy.length ? `<div class="request-anatomy"><div class="request-anatomy-bar">${anatomy.map(([label, value, color]) => `<span style="--series:${color}; flex:${value / totalTime}" title="${escapeHtml(label)} ${value.toFixed(2)} s">${escapeHtml(label)}</span>`).join('')}</div><div class="request-anatomy-legend">${anatomy.map(([label, value]) => `<span>${escapeHtml(label)} <b>${value.toFixed(2)} s</b></span>`).join('')}</div></div>` : '';
+  const latency = [['Time to first token', analytics.time_to_first_token], ['End-to-end latency', analytics.end_to_end]].filter(([, value]) => value);
+  const latencyMarkup = latency.length ? `<div class="request-latency-grid">${latency.map(([label, value]) => `<article><h3>${escapeHtml(label)}</h3>${['p50', 'p90', 'p95', 'p99'].map(key => `<div class="percentile-row"><span>${key}</span><i style="--size:${Math.min(100, (Number(value[key]) || 0) / (Number(value.p99) || 1) * 100)}%"></i><b>${value[key] == null ? 'n/a' : `${(Number(value[key]) * 1000).toFixed(0)} ms`}</b></div>`).join('')}</article>`).join('')}</div>` : '';
+  const sizes = [['Prompt p50', metric('prompt_size.p50')], ['Output p50', metric('output_size.p50')], ['Spec. acceptance', analytics.speculative?.drafted_tokens ? `${((analytics.speculative.accepted_tokens || 0) / analytics.speculative.drafted_tokens * 100).toFixed(1)}%` : null]].filter(([, value]) => value !== null && value !== undefined);
+  const sizeMarkup = sizes.length ? `<div class="request-small-grid">${sizes.map(([label, value]) => `<span>${escapeHtml(label)} <b>${typeof value === 'string' ? value : format(value) + ' tok'}</b></span>`).join('')}</div>` : '';
+  element('requestAnalyticsBody').innerHTML = `<div class="request-card-grid">${cardMarkup}</div>${anatomyMarkup}${latencyMarkup}${sizeMarkup}`;
+}
+
 export function setConnection(status, text) {
   const connection = element('connection');
   connection.className = `connection ${status}`;
@@ -161,6 +195,11 @@ function format(value) {
   if (number >= 1000000) return `${(number / 1000000).toFixed(2)}m`;
   if (number >= 1000) return `${(number / 1000).toFixed(1)}k`;
   return number >= 100 ? number.toFixed(0) : number.toFixed(1);
+}
+
+function formatDuration(seconds) {
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+  return `${Math.floor(seconds / 3600)}d ${Math.floor(seconds / 3600) % 24}h`;
 }
 
 function statusTitle(status) {

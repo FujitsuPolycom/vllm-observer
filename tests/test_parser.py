@@ -75,6 +75,25 @@ vllm:num_requests_waiting{model_name="glm-5.2"} 0
         self.assertEqual(result["lmcache_hit_tokens"], 0)
         self.assertEqual(result["cache_transfer_chunks"], 12.0)
 
+    def test_request_analytics_uses_prometheus_histograms(self):
+        current = parse_samples("""
+vllm:prompt_tokens_total 1000
+vllm:generation_tokens_total 200
+vllm:request_success_total 4
+vllm:num_preemptions_total 2
+vllm:time_to_first_token_seconds_bucket{le="1"} 2
+vllm:time_to_first_token_seconds_bucket{le="2"} 3
+vllm:time_to_first_token_seconds_bucket{le="+Inf"} 4
+vllm:time_to_first_token_seconds_sum 5
+vllm:time_to_first_token_seconds_count 4
+""")
+        result = normalize([], current, 1)
+        analytics = result["request_analytics"]
+        self.assertEqual(analytics["totals"]["prompt_tokens"], 1000)
+        self.assertEqual(analytics["totals"]["preemptions"], 2)
+        self.assertEqual(analytics["time_to_first_token"]["p50"], 1)
+        self.assertEqual(analytics["time_to_first_token"]["p99"], 2)
+
     def test_lines_are_grouped(self):
         groups = classify(SAMPLE)
         self.assertTrue(groups["lmcache"])
