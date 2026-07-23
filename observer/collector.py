@@ -64,7 +64,8 @@ class Collector:
             key, _, value = entry.partition("=")
             if not key.startswith(prefixes):
                 continue
-            if any(word in key.upper() for word in ("TOKEN", "PASSWORD", "SECRET", "API_KEY")):
+            upper = key.upper()
+            if any(word in upper for word in ("PASSWORD", "SECRET", "API_KEY")) or upper in {"HF_TOKEN", "HUGGING_FACE_HUB_TOKEN", "ACCESS_TOKEN", "AUTH_TOKEN"}:
                 value = "[redacted]"
             selected[key] = value
         return dict(sorted(selected.items()))
@@ -78,6 +79,7 @@ class Collector:
             "id": info.get("Id", "")[:12],
             "image": config.get("Image", ""),
             "command": " ".join((config.get("Entrypoint") or []) + (config.get("Cmd") or [])),
+            "command_parts": (config.get("Entrypoint") or []) + (config.get("Cmd") or []),
             "status": state.get("Status", "unknown"),
             "running": bool(state.get("Running")),
             "started_at": state.get("StartedAt", ""),
@@ -85,9 +87,13 @@ class Collector:
             "exit_code": state.get("ExitCode"),
             "pid": state.get("Pid"),
             "network_mode": host.get("NetworkMode", ""),
+            "ipc_mode": host.get("IpcMode", ""),
+            "shm_size": host.get("ShmSize", 0),
+            "device_requests": host.get("DeviceRequests") or [],
             "restart_policy": (host.get("RestartPolicy") or {}).get("Name", ""),
             "env": self._env(config.get("Env")),
             "ports": network.get("Ports") or {},
+            "mounts": [{"source": mount.get("Source", ""), "destination": mount.get("Destination", ""), "mode": mount.get("Mode", "ro")} for mount in info.get("Mounts", [])],
         }
 
     def docker_instances(self) -> list[dict[str, Any]]:
@@ -185,3 +191,49 @@ class Collector:
         if computed is not None and prefill_time and prefill_time > 0:
             result["completed_prefill_tokens_per_second"] = computed / prefill_time
         return result
+
+    def compose_template(self, instance: str) -> str:
+        """Build a best-effort, editable Compose recreation of a discovered container."""
+        record = next((item for item in self.docker_instances() if item["name"] == instance), None)
+        if not record:
+            raise ValueError("choose a discovered Docker instance")
+
+        def quote(value: Any) -> str:
+            return json.dumps(str(value), ensure_ascii=True)
+
+        lines = ["services:", f"  {re.sub(r'[^a-zA-Z0-9_-]', '-', record['name'])}:", f"    image: {quote(record['image'])}"]
+        if record.get("command_parts"):
+            lines.append("    command:")
+            lines.extend(f"      - {quote(part)}" for part in record["command_parts"])
+        if record.get("env"):
+            lines.append("    environment:")
+            lines.extend(f"      {key}: {quote(value)}" for key, value in record["env"].items())
+        if record.get("network_mode") == "host":
+            lines.append("    network_mode: host")
+        elif record.get("ports"):
+            lines.append("    ports:")
+            for container_port, bindings in record["ports"].items():
+                if bindings:
+                    for binding in bindings:
+                        host_port = binding.get("HostPort")
+                        lines.append(f"      - {quote(f'{host_port}:{container_port.split('/')[0]}')}")
+        if record.get("ipc_mode"):
+            lines.append(f"    ipc: {quote(record['ipc_mode'])}")
+        if record.get("shm_size"):
+            lines.append(f"    shm_size: {record['shm_size']}")
+        if record.get("device_requests"):
+            lines.append("    gpus: all")
+        if record.get("mounts"):
+            lines.append("    volumes:")
+            for mount in record["mounts"]:
+                mount_value = f"{mount['source']}:{mount['destination']}:{mount['mode']}"
+                lines.append(f"      - {quote(mount_value)}")
+        if record.get("restart_policy"):
+            lines.append(f"    restart: {quote(record['restart_policy'])}")
+        lines.extend([
+            "",
+            "# Generated from Docker inspect by vLLM Observer.",
+            "# Review host paths, GPU access, secrets, and runtime-specific flags before starting.",
+            "# The original container may depend on host drivers, shared memory, devices, or external files not represented here.",
+        ])
+        return "\n".join(lines) + "\n"
