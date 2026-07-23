@@ -52,6 +52,29 @@ function endpointSlope(interval, adjacentInterval, slope, adjacentSlope) {
   return tangent;
 }
 
+function median(values) {
+  if (!values.length) return null;
+  const sorted = [...values].sort((left, right) => left - right);
+  return sorted[Math.floor(sorted.length / 2)];
+}
+
+function gapLimit(points) {
+  const intervals = points.slice(1)
+    .map((point, index) => point.timestamp - points[index].timestamp)
+    .filter(interval => interval > 0);
+  return Math.max(5000, (median(intervals) || 1000) * 3);
+}
+
+function splitAtGaps(points, limit) {
+  if (points.length < 2) return [points];
+  const segments = [[]];
+  points.forEach((point, index) => {
+    if (index && point.x - points[index - 1].x > limit) segments.push([]);
+    segments.at(-1).push(point);
+  });
+  return segments.filter(segment => segment.length);
+}
+
 export class TimeSeriesChart {
   constructor(canvas, series, options = {}) {
     this.canvas = canvas;
@@ -62,6 +85,7 @@ export class TimeSeriesChart {
     this.focusTimestamp = null;
     this.hoverTimestamp = null;
     this.crosshairEnabled = true;
+    this.gapLimit = 5000;
     this.tooltip = document.createElement('div');
     this.tooltip.className = 'chart-tooltip';
     this.tooltip.hidden = true;
@@ -94,6 +118,7 @@ export class TimeSeriesChart {
     this.points = points;
     this.subdivisions = subdivisions;
     this.focusTimestamp = focusTimestamp;
+    this.gapLimit = gapLimit(points);
     this.draw();
   }
 
@@ -168,6 +193,7 @@ export class TimeSeriesChart {
     if (timestamp >= values.at(-1).x) return values.at(-1).y;
     const after = values.find(point => point.x >= timestamp);
     const before = values[values.indexOf(after) - 1];
+    if (after.x - before.x > this.gapLimit) return null;
     if (this.options.discrete) return before.y;
     const fraction = (timestamp - before.x) / (after.x - before.x);
     return before.y + (after.y - before.y) * fraction;
@@ -263,25 +289,27 @@ export class TimeSeriesChart {
         .map(point => ({ x: point.timestamp, y: Number(pick(point, series.path)), real: true }))
         .filter(point => Number.isFinite(point.y));
       if (!realPoints.length) return;
-      const displayPoints = this.options.discrete ? realPoints : interpolate(realPoints, this.subdivisions);
       context.strokeStyle = series.color;
       context.lineWidth = 2;
       context.lineJoin = 'round';
-      context.beginPath();
-      if (this.options.discrete) {
-        context.moveTo(x(displayPoints[0].x), y(displayPoints[0].y));
-        displayPoints.slice(1).forEach(point => {
-          const previous = displayPoints[displayPoints.indexOf(point) - 1];
-          context.lineTo(x(point.x), y(previous.y));
-          context.lineTo(x(point.x), y(point.y));
-        });
-      } else {
-        displayPoints.forEach((point, index) => {
-          const method = index ? 'lineTo' : 'moveTo';
-          context[method](x(point.x), y(point.y));
-        });
-      }
-      context.stroke();
+      splitAtGaps(realPoints, this.gapLimit).forEach(segment => {
+        const displayPoints = this.options.discrete ? segment : interpolate(segment, this.subdivisions);
+        context.beginPath();
+        if (this.options.discrete) {
+          context.moveTo(x(displayPoints[0].x), y(displayPoints[0].y));
+          displayPoints.slice(1).forEach((point, index) => {
+            const previous = displayPoints[index];
+            context.lineTo(x(point.x), y(previous.y));
+            context.lineTo(x(point.x), y(point.y));
+          });
+        } else {
+          displayPoints.forEach((point, index) => {
+            const method = index ? 'lineTo' : 'moveTo';
+            context[method](x(point.x), y(point.y));
+          });
+        }
+        context.stroke();
+      });
 
       context.fillStyle = series.color;
       realPoints.forEach(point => {
