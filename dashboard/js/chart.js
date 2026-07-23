@@ -71,6 +71,7 @@ export class TimeSeriesChart {
     this.canvas.addEventListener('pointerleave', () => {
       this.hoverTimestamp = null;
       this.tooltip.hidden = true;
+      this.options.onLeave?.();
       this.draw();
     });
     this.canvas.addEventListener('click', event => {
@@ -105,6 +106,13 @@ export class TimeSeriesChart {
     this.draw();
   }
 
+  setHoverTimestamp(timestamp) {
+    if (!this.crosshairEnabled) return;
+    this.hoverTimestamp = timestamp;
+    if (!timestamp) this.tooltip.hidden = true;
+    this.draw();
+  }
+
   timestampAtClientX(clientX) {
     const rect = this.canvas.getBoundingClientRect();
     const fraction = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
@@ -116,6 +124,7 @@ export class TimeSeriesChart {
   handlePointerMove(event) {
     if (!this.crosshairEnabled || !this.points.length) return;
     this.hoverTimestamp = this.timestampAtClientX(event.clientX);
+    this.options.onHover?.(this.hoverTimestamp);
     const rect = this.canvas.getBoundingClientRect();
     const localX = event.clientX - rect.left;
     const localY = event.clientY - rect.top;

@@ -18,6 +18,7 @@ const state = {
   historyOffset: 0,
   focusTimestamp: null,
   crosshair: true,
+  syncCrosshair: false,
   chartOrder: loadChartOrder(),
 };
 
@@ -108,12 +109,21 @@ function setupChartInteractions() {
   });
 }
 
+function syncHover(timestamp) {
+  if (!state.syncCrosshair) return;
+  Object.values(charts).forEach(chart => chart.setHoverTimestamp(timestamp));
+}
+
+function clearHover() {
+  Object.values(charts).forEach(chart => chart.setHoverTimestamp(null));
+}
+
 const charts = {
   throughput: new TimeSeriesChart(element('throughputChart'), [
     { path: 'throughput.fresh_prefill_tps', label: 'Fresh prefill', color: '#12a594', unit: ' tok/s' },
     { path: 'throughput.cached_local_tps', label: 'Local cache', color: '#de7b32', unit: ' tok/s' },
     { path: 'throughput.external_cache_tps', label: 'External / LMCache', color: '#4c72d9', unit: ' tok/s' },
-  ], { empty: 'Waiting for token counter changes', onPoint: point => selectTimelinePoint(point.timestamp) }),
+  ], { empty: 'Waiting for token counter changes', onPoint: point => selectTimelinePoint(point.timestamp), onHover: syncHover, onLeave: clearHover }),
   decode: new TimeSeriesChart(element('decodeChart'), [
     { path: 'throughput.decode_tps', label: 'Decode', color: '#d14f68', unit: ' tok/s' },
     { path: 'speculative.draft_tps', label: 'Drafted', color: '#7d5fc4', unit: ' tok/s' },
@@ -121,6 +131,8 @@ const charts = {
   ], {
     empty: 'Waiting for decode or MTP token changes',
     onPoint: point => selectTimelinePoint(point.timestamp),
+    onHover: syncHover,
+    onLeave: clearHover,
     tooltipRows: valueAt => {
       const running = valueAt('requests.running');
       const decode = valueAt('throughput.decode_tps');
@@ -134,11 +146,11 @@ const charts = {
     { path: 'cache.kv_usage_percent', label: 'KV used', color: '#12a594', unit: '%' },
     { path: 'cache.prefix_hit_percent', label: 'Prefix hit', color: '#de7b32', unit: '%' },
     { path: 'cache.external_prefix_hit_percent', label: 'External hit', color: '#4c72d9', unit: '%' },
-  ], { max: 100, percent: true, empty: 'Cache metrics are not exposed yet', onPoint: point => selectTimelinePoint(point.timestamp) }),
+  ], { max: 100, percent: true, empty: 'Cache metrics are not exposed yet', onPoint: point => selectTimelinePoint(point.timestamp), onHover: syncHover, onLeave: clearHover }),
   requests: new TimeSeriesChart(element('requestChart'), [
     { path: 'requests.running', label: 'Running', color: '#12a594', unit: '' },
     { path: 'requests.waiting', label: 'Queued', color: '#d14f68', unit: '' },
-  ], { discrete: true, empty: 'Waiting for scheduler gauges', onPoint: point => selectTimelinePoint(point.timestamp) }),
+  ], { discrete: true, empty: 'Waiting for scheduler gauges', onPoint: point => selectTimelinePoint(point.timestamp), onHover: syncHover, onLeave: clearHover }),
 };
 
 async function loadInstances() {
@@ -162,6 +174,7 @@ async function selectWorkload(name) {
   state.historyOffset = 0;
   state.focusTimestamp = null;
   element('exportReport').disabled = true;
+  element('clearPin').disabled = true;
   element('logFocus').textContent = 'Live tail';
   renderInstances(state.instances, state.selected);
   if (!name) return;
@@ -240,6 +253,7 @@ async function selectTimelinePoint(timestamp) {
   if (!state.selected) return;
   state.focusTimestamp = timestamp;
   element('exportReport').disabled = false;
+  element('clearPin').disabled = false;
   element('logFocus').textContent = 'Loading logs near ' + formatTime(timestamp, true);
   drawCharts();
   try {
@@ -254,12 +268,15 @@ async function selectTimelinePoint(timestamp) {
 }
 
 element('instanceSelect').addEventListener('change', event => selectWorkload(event.target.value));
-element('pauseButton').addEventListener('click', () => {
+function togglePaused() {
   state.paused = !state.paused;
   element('pauseButton').textContent = state.paused ? 'Resume' : 'Pause';
+  element('timelinePause').textContent = state.paused ? 'Resume updates' : 'Pause updates';
   setConnection(state.paused ? 'pending' : 'ok', state.paused ? 'Paused' : 'Live');
   if (!state.paused) loadSnapshot();
-});
+}
+element('pauseButton').addEventListener('click', togglePaused);
+element('timelinePause').addEventListener('click', togglePaused);
 element('themeButton').addEventListener('click', () => {
   document.body.classList.toggle('minimal');
   element('themeButton').textContent = document.body.classList.contains('minimal') ? 'Rich' : 'Minimal';
@@ -284,6 +301,20 @@ element('timezoneSelect').addEventListener('change', event => {
   setTimezone(event.target.value);
   drawCharts();
   if (state.history.length) renderSnapshot(state.history.at(-1));
+});
+element('syncCrosshair').addEventListener('click', event => {
+  state.syncCrosshair = !state.syncCrosshair;
+  event.currentTarget.textContent = state.syncCrosshair ? 'Sync hover: On' : 'Sync hover: Off';
+  event.currentTarget.setAttribute('aria-pressed', String(state.syncCrosshair));
+  if (!state.syncCrosshair) clearHover();
+});
+element('clearPin').addEventListener('click', () => {
+  state.focusTimestamp = null;
+  element('clearPin').disabled = true;
+  element('exportReport').disabled = true;
+  element('logFocus').textContent = 'Live tail';
+  drawCharts();
+  loadLogs();
 });
 element('toggleCrosshair').addEventListener('click', event => {
   state.crosshair = !state.crosshair;

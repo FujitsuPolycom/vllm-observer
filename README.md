@@ -2,6 +2,8 @@
 
 Read-only observability for vLLM workloads. It discovers Docker containers, samples each workload's Prometheus endpoint on a server-owned clock, stores bounded rolling history, and displays throughput, cache, LMCache, MTP, scheduler, configuration, and logs.
 
+Click any chart point to pin that time across the timeline, inspect the matching archived logs and runtime configuration, and export an HTML report with the selected telemetry and surrounding context.
+
 The runtime requires Python 3.11 or newer and has no third-party Python dependencies. The dashboard uses native ES modules and HTML5 canvas.
 
 ## Docker Compose

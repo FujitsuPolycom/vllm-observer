@@ -52,6 +52,7 @@
         <div>
           <p class="eyebrow">Real samples + visual interpolation</p>
           <h2 id="timelineTitle">Telemetry timeline</h2>
+          <p class="section-hint">Click a chart point to pin its time, inspect nearby logs and runtime configuration, and export a report.</p>
         </div>
         <div class="chart-controls">
           <div class="rate-controls">
@@ -67,6 +68,9 @@
             <option value="3600">1 hour</option>
           </select>
           <button id="toggleCrosshair" class="button secondary" type="button" aria-pressed="true">Crosshair: On</button>
+          <button id="syncCrosshair" class="button secondary" type="button" aria-pressed="false">Sync hover: Off</button>
+          <button id="clearPin" class="button secondary" type="button" disabled>Clear pin</button>
+          <button id="timelinePause" class="button secondary" type="button">Pause updates</button>
         </div>
       </div>
 
