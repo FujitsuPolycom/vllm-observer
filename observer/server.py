@@ -90,6 +90,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send({"instance": instance, "lines": lines, "metrics": metrics(lines), "live_metrics": collector.live_metrics(instance), "groups": classify(lines)})
             if path == "/app.js":
                 return self._file(DASHBOARD / "app.js", "text/javascript; charset=utf-8")
+            if path == "/display.js":
+                return self._file(DASHBOARD / "display.js", "text/javascript; charset=utf-8")
             if path == "/styles.css":
                 return self._file(DASHBOARD / "styles.css", "text/css; charset=utf-8")
             self._send({"error": "not found"}, 404)
