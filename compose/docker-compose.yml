@@ -1,3 +1,31 @@
+# ---------------------------------------------------------------------------
+# vLLM Observer — main Docker Compose deployment
+#
+# Build context is the repo root (build: ..) so the Dockerfile can COPY
+# the observer/ and dashboard/ subdirectories. A .dockerignore at the repo
+# root keeps .git, tests/, docs/ and other non-runtime files out of the
+# build context for faster, leaner image builds.
+#
+# --- host.docker.internal on Linux -----------------------------------------
+# On macOS and Windows, Docker Desktop resolves host.docker.internal
+# automatically.  On Linux it does NOT — the extra_hosts entry below
+# maps host.docker.internal to host-gateway so the observer container can
+# reach vLLM ports published on the host.
+#
+# If you run the observer with plain `docker run` (no Compose), add:
+#   --add-host=host.docker.internal:host-gateway
+# or set VLLM_OBSERVER_METRICS_HOST to the host's IP / 172.17.0.1 directly.
+#
+# --- Env var cascade -------------------------------------------------------
+# VLLM_OBSERVER_METRICS_HOST default chain:
+#   1. Value from .env or shell environment (highest priority)
+#   2. Compose default:  host.docker.internal  (works with extra_hosts)
+#   3. collector.py default: 127.0.0.1  (host-network mode, no Compose)
+#
+# Copy .env.example to .env and edit values as needed:
+#   cp .env.example .env
+# ---------------------------------------------------------------------------
+
 services:
   vllm-observer:
     build: ..

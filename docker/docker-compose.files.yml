@@ -19,6 +19,8 @@ services:
       VLLM_OBSERVER_LOG_SAMPLE_SECONDS: "${VLLM_OBSERVER_LOG_SAMPLE_SECONDS:-3}"
       VLLM_OBSERVER_LOG_HISTORY_SECONDS: "${VLLM_OBSERVER_LOG_HISTORY_SECONDS:-604800}"
       VLLM_OBSERVER_LOG_HISTORY_MAX_BYTES: "${VLLM_OBSERVER_LOG_HISTORY_MAX_BYTES:-50000000}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./logs:/logs:ro
       - vllm-observer-files-data:/data

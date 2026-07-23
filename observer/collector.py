@@ -12,7 +12,7 @@ from typing import Any
 ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 SECRET_RE = re.compile(r"(?i)(bearer\s+|(?:api[_-]?key|token|password|secret)\s*[=:]\s*)\S+")
 IDENT_RE = re.compile(r"^[a-zA-Z0-9_.-]{1,128}$")
-VLLM_TERMS = ("vllm", "lmcache", "sglang", "triton", "serve-glm", "glm52", "deepseek", "llama-server")
+VLLM_TERMS = ("vllm", "sglang", "triton", "serve-glm", "glm52", "deepseek", "llama-server")
 
 
 def clean(line: str) -> str:
@@ -198,7 +198,8 @@ class Collector:
                 if bindings:
                     for binding in bindings:
                         host_port = binding.get("HostPort")
-                        lines.append(f"      - {quote(f'{host_port}:{container_port.split('/')[0]}')}")
+                        port_mapping = f"{host_port}:{container_port.split('/')[0]}"
+                        lines.append(f"      - {quote(port_mapping)}")
         if record.get("ipc_mode"):
             lines.append(f"    ipc: {quote(record['ipc_mode'])}")
         if record.get("shm_size"):

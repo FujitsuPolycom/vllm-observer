@@ -104,7 +104,7 @@ class MetricSampler:
             "source": {"url": url, "expected_model": expected_model},
         }
         if not url:
-            return self._set_status(instance, {**base, "status": "unconfigured", "error": "No metrics endpoint could be resolved"})
+            return self._set_status(instance, {**base, "status": "unconfigured", "error": "No metrics endpoint could be resolved for this container. Set PORT/VLLM_PORT env or --port flag on the workload, or configure VLLM_OBSERVER_METRICS_URL or VLLM_OBSERVER_METRICS_URL_<INSTANCE>."})
         try:
             current = parse_samples(self._fetch(url))
         except Exception as error:  # Network libraries raise several environment-specific subclasses.

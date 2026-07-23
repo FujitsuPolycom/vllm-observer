@@ -6,30 +6,64 @@ Click any chart point to pin that time across the timeline, inspect the matching
 
 The runtime requires Python 3.11 or newer and has no third-party Python dependencies. The dashboard uses native ES modules and HTML5 canvas.
 
-## Docker Compose
+## Quick start (single vLLM container on the same host)
 
 ```bash
 git clone https://github.com/FujitsuPolycom/vllm-observer.git
 cd vllm-observer
+cp .env.example .env          # optional: review and adjust defaults
 docker compose -f compose/docker-compose.yml up -d --build
 ```
 
 Open `http://localhost:8088`.
 
-The included Compose file:
+That's it for the most common deployment: the observer and your vLLM
+container(s) on the same Docker host. The Compose file automatically:
 
-- mounts the Docker socket for read-only discovery and log inspection;
-- reaches host-published vLLM ports through `host.docker.internal`;
-- retains 3,600 real samples per workload in a Docker volume;
-- samples Prometheus every second independently of browsers and API clients.
+- mounts the Docker socket (read-only) for container discovery and log access;
+- maps `host.docker.internal` to the host gateway via `extra_hosts` so the
+  observer can reach vLLM's Prometheus `/metrics` endpoint on the host;
+- retains 3,600 real samples per workload in a named Docker volume;
+- samples Prometheus every second, independent of browsers and API clients.
 
-Docker socket access is powerful even when mounted read-only. Protect the observer with a firewall, VPN, authentication proxy, or private network.
+### `host.docker.internal` on Linux
+
+Docker Desktop on macOS and Windows resolves `host.docker.internal`
+automatically. **Linux does not** — the Compose file handles this with:
+
+```yaml
+extra_hosts:
+  - "host.docker.internal:host-gateway"
+```
+
+If you run the observer with plain `docker run` instead of Compose, you need
+to add `--add-host=host.docker.internal:host-gateway` yourself, or set
+`VLLM_OBSERVER_METRICS_HOST` to the host IP or the Docker bridge gateway
+(`172.17.0.1` for the default bridge network).
+
+### `.env.example`
+
+All configurable environment variables are documented in
+[`.env.example`](.env.example). Copy it to `.env` and adjust as needed:
+
+```bash
+cp .env.example .env
+```
+
+The `.env` file is read automatically by Docker Compose. See the
+[Configuration](#configuration) table below for the full reference.
 
 ### Choose the deployment mode
 
-Use `compose/docker-compose.yml` when the observer and vLLM run on the same Docker host. It discovers running and stopped vLLM-like containers, reads Docker logs, and resolves a metrics port from `PORT`, `VLLM_PORT`, or `--port`.
+Use `compose/docker-compose.yml` when the observer and vLLM run on the same
+Docker host. It discovers running and stopped vLLM-like containers, reads
+Docker logs, and resolves a metrics port from `PORT`, `VLLM_PORT`, or
+`--port`.
 
-Use `docker/docker-compose.files.yml` when Docker discovery is unavailable or you only want to expose selected log files. Create the local log directory, put the files in it, and provide a metrics URL that is reachable **from inside the observer container**:
+Use `docker/docker-compose.files.yml` when Docker discovery is unavailable
+or you only want to expose selected log files. Create the local log
+directory, put the files in it, and provide a metrics URL that is reachable
+**from inside the observer container**:
 
 ```bash
 mkdir -p docker/logs
@@ -37,9 +71,13 @@ VLLM_OBSERVER_METRICS_URL=http://host.docker.internal:8000/metrics \
   docker compose -f docker/docker-compose.files.yml up -d --build
 ```
 
-On Windows PowerShell, use `New-Item -ItemType Directory docker\logs` before starting Compose.
+On Windows PowerShell, use `New-Item -ItemType Directory docker\logs` before
+starting Compose. The file-based Compose file also needs `extra_hosts` for
+`host.docker.internal` on Linux — add the same entry as in the main Compose
+file if you use it.
 
-For a Linux host, replace `host.docker.internal` with a reachable host address or add an equivalent host-gateway mapping. The mounted-log example does not discover containers; it observes the configured files and the one explicit metrics endpoint.
+The mounted-log example does not discover containers; it observes the
+configured files and the one explicit metrics endpoint.
 
 To run directly on a host without Docker Compose (Bash):
 
@@ -119,7 +157,7 @@ API reads never trigger metric collection. One background sampler owns counter s
 | `VLLM_OBSERVER_DOCKER` | `1` | Enable Docker discovery |
 | `VLLM_OBSERVER_LOG_PATHS` | empty | Comma-separated files or directories |
 | `VLLM_OBSERVER_CONTAINER_ALLOWLIST` | empty | Exact container names to include |
-| `VLLM_OBSERVER_DISCOVERY_TERMS` | built-in terms | Comma-separated extra/replacement terms matched against container names, images, commands, and label keys |
+| `VLLM_OBSERVER_DISCOVERY_TERMS` | built-in terms | Comma-separated extra/replacement terms matched against container names, images, commands, and label keys. Defaults: `vllm,sglang,triton,serve-glm,glm52,deepseek,llama-server` |
 | `VLLM_OBSERVER_LOG_TAIL` | `320` | Maximum lines returned per workload |
 | `VLLM_OBSERVER_LOG_SAMPLE_SECONDS` | `3` | Interval for capturing new log lines into the archive |
 | `VLLM_OBSERVER_LOG_HISTORY_SECONDS` | `604800` | Maximum log archive age; default is seven days |

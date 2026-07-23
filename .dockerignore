@@ -1,0 +1,29 @@
+# Version control
+.git
+.gitignore
+
+# Tests and docs — not needed at runtime
+tests/
+docs/
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+.venv/
+dist/
+build/
+*.egg-info/
+
+# Local env files (keep .env.example for reference, exclude actual .env)
+.env
+
+# Editor / OS cruft
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.swo
+
+# Docker compose files (not needed inside the image)
+compose/
+docker/

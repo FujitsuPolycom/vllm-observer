@@ -1,7 +1,12 @@
+# Stage 1: extract the docker CLI binary from the official image.
+# The observer only needs the `docker` command for `docker ps`,
+# `docker inspect`, and `docker logs` — not the full Docker engine
+# (containerd, iptables, etc.) that `docker.io` pulls in on Debian.
+FROM docker:cli AS docker-cli
+
+# Stage 2: runtime image with just the Python app + docker CLI binary.
 FROM python:3.12-slim
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends docker.io docker-cli \
-    && rm -rf /var/lib/apt/lists/*
+COPY --from=docker-cli /usr/local/bin/docker /usr/local/bin/docker
 WORKDIR /app
 COPY observer ./observer
 COPY dashboard ./dashboard
