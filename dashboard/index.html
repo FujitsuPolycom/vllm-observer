@@ -9,10 +9,11 @@
   <main>
     <section class="hero"><div><h1>vLLM Observer</h1></div><div class="sample"><span>LAST SAMPLE</span><strong id="sampleTime">waiting</strong></div></section>
     <div class="toolbar"><label for="instance">WORKLOAD</label><select id="instance"><option>discovering...</option></select><button id="pause" type="button">Pause</button><span id="refresh">refreshing every 3s</span></div>
+    <section class="section"><div class="section-head"><div><h2>Model and runtime configuration</h2></div><span id="configMeta">waiting</span></div><div id="config" class="config-grid"></div></section>
     <section class="section"><div class="section-head"><div><h2>Performance</h2></div><span id="metricMeta">waiting for metrics</span></div><div id="metrics" class="metrics"></div></section>
     <section class="section"><div class="section-head"><div><h2>Subsystem logs</h2></div><span id="logMeta">waiting</span></div><div id="logs" class="logs"></div></section>
   </main>
   <footer>vLLM Observer · no writes, no container mutations, no fabricated metrics</footer>
-  <script src="/app.js"></script>
+  <script src="/app.js"></script><script>setInterval(()=>{if(typeof state!=='undefined'&&state.selected)renderConfig(state.instances.find(x=>x.name===state.selected))},1000)</script>
 </body>
 </html>
