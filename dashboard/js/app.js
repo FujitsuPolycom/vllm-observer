@@ -22,8 +22,12 @@ const charts = {
     { path: 'throughput.fresh_prefill_tps', color: '#12a594' },
     { path: 'throughput.cached_local_tps', color: '#de7b32' },
     { path: 'throughput.external_cache_tps', color: '#4c72d9' },
-    { path: 'throughput.decode_tps', color: '#d14f68' },
   ], { empty: 'Waiting for token counter changes' }),
+  decode: new TimeSeriesChart(element('decodeChart'), [
+    { path: 'throughput.decode_tps', color: '#d14f68' },
+    { path: 'speculative.draft_tps', color: '#7d5fc4' },
+    { path: 'speculative.accepted_tps', color: '#12a594' },
+  ], { empty: 'Waiting for decode or MTP token changes' }),
   cache: new TimeSeriesChart(element('cacheChart'), [
     { path: 'cache.kv_usage_percent', color: '#12a594' },
     { path: 'cache.prefix_hit_percent', color: '#de7b32' },

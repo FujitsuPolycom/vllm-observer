@@ -78,15 +78,26 @@
       <div class="chart-grid">
         <article class="chart-panel chart-wide">
           <div class="panel-heading">
-            <div><h3>Token pipeline</h3><p>Fresh compute, cache reuse, and decoded output</p></div>
+            <div><h3>Input and cache pipeline</h3><p>Fresh compute, local prefix reuse, and external KV transfer</p></div>
             <div class="legend">
               <span style="--series:#12a594">Fresh prefill</span>
               <span style="--series:#de7b32">Local cache</span>
               <span style="--series:#4c72d9">External / LMCache</span>
-              <span style="--series:#d14f68">Decode</span>
             </div>
           </div>
           <canvas id="throughputChart" aria-label="Token throughput history"></canvas>
+        </article>
+
+        <article class="chart-panel">
+          <div class="panel-heading">
+            <div><h3>Decode and MTP</h3><p>Output, drafted tokens, and accepted draft tokens</p></div>
+            <div class="legend">
+              <span style="--series:#d14f68">Decode</span>
+              <span style="--series:#7d5fc4">Drafted</span>
+              <span style="--series:#12a594">Accepted</span>
+            </div>
+          </div>
+          <canvas id="decodeChart" aria-label="Decode and speculative throughput history"></canvas>
         </article>
 
         <article class="chart-panel">
