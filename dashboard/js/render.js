@@ -40,6 +40,9 @@ export function renderSnapshot(point) {
   element('sourceUrl').textContent = source.url || 'Not resolved';
   element('sourceUrl').title = source.url || '';
   element('sourceModel').textContent = source.observed_models?.join(', ') || source.expected_model || 'Waiting';
+  document.querySelectorAll('.chart-model').forEach(node => {
+    node.textContent = source.observed_models?.join(', ') || source.expected_model || 'model pending';
+  });
  element('sampleCadence').textContent = point.sample_seconds ? `${point.sample_seconds.toFixed(2)} s` : 'Waiting';
   element('realSamplingRate').textContent = point.sample_seconds ? `${point.sample_seconds.toFixed(2)} s` : 'Waiting';
   element('lastCollected').textContent = point.timestamp ? formatTime(point.timestamp, true) : 'Waiting';
