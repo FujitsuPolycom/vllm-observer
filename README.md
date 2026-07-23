@@ -57,6 +57,8 @@ The container exposes a versioned, read-only JSON API on port `8088`.
 | `/api/v1/instances/{name}/snapshot` | Latest verified telemetry point |
 | `/api/v1/instances/{name}/history?limit=900` | Rolling real-sample history |
 | `/api/v1/instances/{name}/logs` | Classified bounded log tail |
+| `/api/v1/instances/{name}/logs?at=<timestamp>` | Archived log context around a chart point |
+| `/api/v1/instances/{name}/report?at=<timestamp>` | Downloadable HTML report for a chart point |
 | `/api/v1/instances/{name}/config` | Selected container details |
 
 API reads never trigger metric collection. One background sampler owns counter state, so multiple dashboards and API clients cannot alter the measured interval.
@@ -71,6 +73,11 @@ API reads never trigger metric collection. One background sampler owns counter s
 | `VLLM_OBSERVER_LOG_PATHS` | empty | Comma-separated files or directories |
 | `VLLM_OBSERVER_CONTAINER_ALLOWLIST` | empty | Exact container names to include |
 | `VLLM_OBSERVER_LOG_TAIL` | `320` | Maximum lines returned per workload |
+| `VLLM_OBSERVER_LOG_SAMPLE_SECONDS` | `3` | Interval for capturing new log lines into the archive |
+| `VLLM_OBSERVER_LOG_HISTORY_SECONDS` | `604800` | Maximum log archive age; default is seven days |
+| `VLLM_OBSERVER_LOG_CONTEXT_SECONDS` | `30` | Log archive window returned around a selected chart point |
+| `VLLM_OBSERVER_LOG_CONTEXT_LINES` | `1000` | Maximum lines returned for selected log context |
+| `VLLM_OBSERVER_LOG_HISTORY_MAX_BYTES` | `50000000` | Maximum persisted log archive size |
 | `VLLM_OBSERVER_METRICS_HOST` | `127.0.0.1` | Host used with an auto-discovered port |
 | `VLLM_OBSERVER_METRICS_URL` | empty | Explicit single-endpoint Prometheus URL |
 | `VLLM_OBSERVER_METRICS_URL_<INSTANCE>` | empty | Per-container Prometheus URL |

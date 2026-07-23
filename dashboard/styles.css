@@ -151,8 +151,11 @@ h3 { margin: 0; font-size: 14px; }
 .metric-card.unavailable strong { color: var(--strong-line); }
 
 .chart-section { padding-top: 38px; }
-.chart-controls { display: grid; grid-template-columns: auto minmax(130px, 220px) auto 120px; align-items: center; gap: 8px 12px; }
+.chart-controls { display: grid; grid-template-columns: minmax(220px, 1fr) auto 120px auto; align-items: center; gap: 8px 12px; }
 .chart-controls label { margin: 0; }
+.rate-controls { display: grid; grid-template-columns: auto minmax(130px, 220px); align-items: center; gap: 8px 12px; }
+.rate-controls .real-rate { grid-column: 1 / -1; display: flex; justify-content: space-between; gap: 12px; color: var(--muted); font: 10px ui-monospace, SFMono-Regular, Consolas, monospace; }
+.real-rate output { color: var(--accent-dark); font-weight: 800; }
 input[type="range"] { width: 100%; accent-color: var(--accent); }
 .timeline-control {
   display: grid;
@@ -195,18 +198,17 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   background: var(--panel-alt);
   font: 10px ui-monospace, SFMono-Regular, Consolas, monospace;
 }
+.chart-move { width: 28px; padding: 0; font-size: 14px; }
 .drag-handle { display: inline-flex; align-items: center; cursor: grab; user-select: none; }
 .drag-handle:active { cursor: grabbing; }
 .chart-move, .chart-expand { cursor: pointer; }
 .chart-move:hover, .chart-expand:hover { border-color: var(--accent); color: var(--accent-dark); }
 body.chart-expanded { overflow: hidden; }
-.chart-wide { grid-column: 1 / -1; }
 .panel-heading { display: flex; justify-content: space-between; gap: 20px; padding: 14px 16px 8px; }
 .panel-heading p { margin: 4px 0 0; color: var(--muted); font-size: 11px; }
 .legend { display: flex; flex-wrap: wrap; justify-content: end; gap: 8px 14px; color: var(--muted); font-size: 10px; }
 .legend span::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 5px; background: var(--series); }
 canvas { display: block; width: 100%; height: 280px; }
-.chart-wide canvas { height: 330px; }
 
 .capability-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
 .capability { border-top: 3px solid var(--strong-line); padding: 13px 0 0; }
@@ -217,6 +219,7 @@ canvas { display: block; width: 100%; height: 280px; }
 .capability p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
 
 .split-section { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 22px; }
+.log-actions { display: flex; align-items: center; gap: 10px; }
 .configuration, .logs { display: grid; gap: 7px; }
 .config-group, .log-group { border: 1px solid var(--line); border-radius: 5px; background: var(--panel); }
 summary {
@@ -239,6 +242,22 @@ summary small { color: var(--muted); font: 10px ui-monospace, monospace; }
 .log-lines > div { padding: 2px 10px; overflow-wrap: anywhere; }
 .log-lines > div:hover { background: #1c292b; }
 .empty { padding: 16px; color: var(--muted); font-size: 12px; }
+.chart-tooltip {
+  position: absolute;
+  z-index: 5;
+  min-width: 165px;
+  pointer-events: none;
+  padding: 8px 10px;
+  border: 1px solid var(--strong-line);
+  border-radius: 4px;
+  color: var(--text);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  font: 10px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+.chart-tooltip strong { display: block; margin-bottom: 4px; }
+.chart-tooltip span { display: block; white-space: nowrap; }
+.chart-tooltip i { display: inline-block; width: 7px; height: 7px; margin-right: 5px; }
 
 footer {
   display: flex;
@@ -276,15 +295,15 @@ body.minimal .metric-card, body.minimal .chart-panel { border-radius: 0; }
   .top-actions { width: 100%; overflow-x: auto; padding-bottom: 2px; }
   .control-band, .split-section { grid-template-columns: 1fr; }
   .chart-grid { grid-template-columns: 1fr; }
-  .chart-wide { grid-column: auto; }
   .section-heading { align-items: flex-start; flex-direction: column; }
   .chart-controls { width: 100%; grid-template-columns: 1fr 1fr; }
+  .rate-controls { grid-column: 1 / -1; }
   .panel-heading { flex-direction: column; }
   .legend { justify-content: start; }
   .panel-actions { width: 100%; justify-content: start; margin-left: 0; }
   .chart-panel.is-expanded { inset: 8px; }
   .chart-panel.is-expanded canvas { height: calc(100vh - 210px); min-height: 300px; }
-  canvas, .chart-wide canvas { height: 260px; }
+  canvas { height: 260px; }
 }
 
 @media (max-width: 540px) {

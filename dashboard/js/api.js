@@ -14,5 +14,7 @@ export const api = {
   snapshot: name => request(instancePath(name, 'snapshot')),
   history: (name, limit = 3600) => request(`${instancePath(name, 'history')}?limit=${limit}`),
   logs: name => request(instancePath(name, 'logs')),
+  logsAt: (name, timestamp) => instancePath(name, 'logs') + '?at=' + encodeURIComponent(timestamp),
   config: name => request(instancePath(name, 'config')),
+  reportUrl: (name, timestamp) => instancePath(name, 'report') + '?at=' + encodeURIComponent(timestamp),
 };

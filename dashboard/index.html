@@ -57,8 +57,11 @@
           <h2 id="timelineTitle">Telemetry timeline</h2>
         </div>
         <div class="chart-controls">
-          <label for="smoothness" title="Controls how many visually interpolated points are drawn between real Prometheus samples. It does not change the server sampling rate or measured values.">Virtual sampling rate <output id="smoothnessValue">6</output></label>
-          <input id="smoothness" type="range" min="0" max="20" step="1" value="6">
+          <div class="rate-controls">
+            <label for="smoothness" title="Controls how many visually interpolated points are drawn between real Prometheus samples. It does not change the server sampling rate or measured values.">Virtual sampling rate <output id="smoothnessValue">6</output></label>
+            <input id="smoothness" type="range" min="0" max="20" step="1" value="6">
+            <span class="real-rate" title="Measured time between the last two real Prometheus samples."><span>Real sampling rate</span><output id="realSamplingRate">waiting</output></span>
+          </div>
           <label for="windowSize">Window</label>
           <select id="windowSize">
             <option value="60">1 minute</option>
@@ -66,6 +69,7 @@
             <option value="900">15 minutes</option>
             <option value="3600">1 hour</option>
           </select>
+          <button id="toggleCrosshair" class="button secondary" type="button" aria-pressed="true">Crosshair: On</button>
         </div>
       </div>
 
@@ -76,7 +80,7 @@
       </div>
 
       <div class="chart-grid">
-        <article class="chart-panel chart-wide" data-chart-panel="throughput">
+        <article class="chart-panel" data-chart-panel="throughput">
           <div class="panel-heading">
             <div><h3>Input and cache pipeline</h3><p>Fresh compute, local prefix reuse, and external KV transfer</p></div>
             <div class="legend">
@@ -86,8 +90,10 @@
             </div>
             <div class="panel-actions">
               <span class="drag-handle" draggable="true" title="Drag to rearrange this chart" aria-label="Drag to rearrange this chart">Move</span>
-              <button class="chart-move" data-direction="up" type="button" title="Move chart up">Up</button>
-              <button class="chart-move" data-direction="down" type="button" title="Move chart down">Down</button>
+              <button class="chart-move" data-move="-2" type="button" title="Move chart up">&uarr;</button>
+              <button class="chart-move" data-move="-1" type="button" title="Move chart left">&larr;</button>
+              <button class="chart-move" data-move="1" type="button" title="Move chart right">&rarr;</button>
+              <button class="chart-move" data-move="2" type="button" title="Move chart down">&darr;</button>
               <button class="chart-expand" type="button">Expand</button>
             </div>
           </div>
@@ -104,8 +110,10 @@
             </div>
             <div class="panel-actions">
               <span class="drag-handle" draggable="true" title="Drag to rearrange this chart" aria-label="Drag to rearrange this chart">Move</span>
-              <button class="chart-move" data-direction="up" type="button" title="Move chart up">Up</button>
-              <button class="chart-move" data-direction="down" type="button" title="Move chart down">Down</button>
+              <button class="chart-move" data-move="-2" type="button" title="Move chart up">&uarr;</button>
+              <button class="chart-move" data-move="-1" type="button" title="Move chart left">&larr;</button>
+              <button class="chart-move" data-move="1" type="button" title="Move chart right">&rarr;</button>
+              <button class="chart-move" data-move="2" type="button" title="Move chart down">&darr;</button>
               <button class="chart-expand" type="button">Expand</button>
             </div>
           </div>
@@ -122,8 +130,10 @@
             </div>
             <div class="panel-actions">
               <span class="drag-handle" draggable="true" title="Drag to rearrange this chart" aria-label="Drag to rearrange this chart">Move</span>
-              <button class="chart-move" data-direction="up" type="button" title="Move chart up">Up</button>
-              <button class="chart-move" data-direction="down" type="button" title="Move chart down">Down</button>
+              <button class="chart-move" data-move="-2" type="button" title="Move chart up">&uarr;</button>
+              <button class="chart-move" data-move="-1" type="button" title="Move chart left">&larr;</button>
+              <button class="chart-move" data-move="1" type="button" title="Move chart right">&rarr;</button>
+              <button class="chart-move" data-move="2" type="button" title="Move chart down">&darr;</button>
               <button class="chart-expand" type="button">Expand</button>
             </div>
           </div>
@@ -139,8 +149,10 @@
             </div>
             <div class="panel-actions">
               <span class="drag-handle" draggable="true" title="Drag to rearrange this chart" aria-label="Drag to rearrange this chart">Move</span>
-              <button class="chart-move" data-direction="up" type="button" title="Move chart up">Up</button>
-              <button class="chart-move" data-direction="down" type="button" title="Move chart down">Down</button>
+              <button class="chart-move" data-move="-2" type="button" title="Move chart up">&uarr;</button>
+              <button class="chart-move" data-move="-1" type="button" title="Move chart left">&larr;</button>
+              <button class="chart-move" data-move="1" type="button" title="Move chart right">&rarr;</button>
+              <button class="chart-move" data-move="2" type="button" title="Move chart down">&darr;</button>
               <button class="chart-expand" type="button">Expand</button>
             </div>
           </div>
@@ -170,7 +182,7 @@
       <div>
         <div class="section-heading compact">
           <div><p class="eyebrow">Read-only tail</p><h2>Subsystem logs</h2></div>
-          <span id="logMeta" class="section-meta"></span>
+          <div class="log-actions"><span id="logFocus" class="section-meta">Live tail</span><button id="exportReport" class="button secondary" type="button" disabled>Export report</button><span id="logMeta" class="section-meta"></span></div>
         </div>
         <div id="logs" class="logs"></div>
       </div>

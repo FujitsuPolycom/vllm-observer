@@ -38,7 +38,8 @@ export function renderSnapshot(point) {
   element('sourceUrl').textContent = source.url || 'Not resolved';
   element('sourceUrl').title = source.url || '';
   element('sourceModel').textContent = source.observed_models?.join(', ') || source.expected_model || 'Waiting';
-  element('sampleCadence').textContent = point.sample_seconds ? `${point.sample_seconds.toFixed(2)} s` : 'Waiting';
+ element('sampleCadence').textContent = point.sample_seconds ? `${point.sample_seconds.toFixed(2)} s` : 'Waiting';
+  element('realSamplingRate').textContent = point.sample_seconds ? `${point.sample_seconds.toFixed(2)} s` : 'Waiting';
   element('lastCollected').textContent = point.timestamp ? new Date(point.timestamp).toLocaleTimeString() : 'Waiting';
 
   const diagnostic = element('diagnostic');
@@ -115,6 +116,7 @@ export function renderConfiguration(item) {
 
 export function renderLogs(payload) {
   const groups = payload.groups || {};
+  const focusLine = payload.focus_line;
   const definitions = [
     ['lmcache', 'LMCache / KV transfer'],
     ['prefill', 'Prefill / prompt'],
@@ -131,6 +133,15 @@ export function renderLogs(payload) {
     </details>`;
   }).join('');
   element('logMeta').textContent = `${payload.lines?.length || 0} lines`;
+  if (focusLine) {
+    const focusedLine = [...element('logs').querySelectorAll('.log-lines > div')]
+      .find(line => line.textContent === focusLine);
+    if (focusedLine) {
+      focusedLine.classList.add('log-focus');
+      focusedLine.closest('details').open = true;
+      focusedLine.scrollIntoView({ block: 'center' });
+    }
+  }
 }
 
 export function setConnection(status, text) {

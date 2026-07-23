@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parent.parent
 DASHBOARD = ROOT / "dashboard"
 collector = Collector()
 sampler = MetricSampler(collector)
-INSTANCE_ROUTE = re.compile(r"^/api/v1/instances/([^/]+)/(snapshot|history|logs|config)$")
+INSTANCE_ROUTE = re.compile(r"^/api/v1/instances/([^/]+)/(snapshot|history|logs|config|report)$")
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -69,6 +69,7 @@ class Handler(BaseHTTPRequestHandler):
                         "/api/v1/instances/{name}/history?limit=900",
                         "/api/v1/instances/{name}/logs",
                         "/api/v1/instances/{name}/config",
+                        "/api/v1/instances/{name}/report?at=<timestamp>",
                     ],
                 })
             if path in {"/api/health", "/api/v1/status"}:
@@ -119,6 +120,11 @@ class Handler(BaseHTTPRequestHandler):
                 limit = 900
             return self._send({"instance": instance, "points": sampler.history(instance, limit)})
         if resource == "logs":
+            at = _query_timestamp(query)
+            if at is not None:
+                payload = sampler.logs_at(instance, at)
+                payload["groups"] = classify(payload["lines"])
+                return self._send(payload)
             lines = collector.logs(instance)
             return self._send({"instance": instance, "lines": lines, "groups": classify(lines)})
         if resource == "config":
@@ -126,6 +132,14 @@ class Handler(BaseHTTPRequestHandler):
             if not item:
                 return self._send({"error": "unknown instance"}, 404)
             return self._send(item)
+        if resource == "report":
+            body = sampler.report(instance, _query_timestamp(query)).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Disposition", f'attachment; filename="{instance}.report.html"')
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            return self.wfile.write(body)
 
     def log_message(self, format: str, *args: object) -> None:
         if os.getenv("VLLM_OBSERVER_ACCESS_LOG", "0") == "1":
@@ -148,6 +162,14 @@ def _legacy_live(point: dict[str, object]) -> dict[str, object]:
         "running_requests": requests.get("running"),
         "waiting_requests": requests.get("waiting"),
     }
+
+
+def _query_timestamp(query: dict[str, list[str]]) -> int | None:
+    try:
+        value = query.get("at", [""])[0]
+        return int(value) if value else None
+    except (TypeError, ValueError):
+        return None
 
 
 def main() -> None:

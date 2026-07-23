@@ -15,6 +15,8 @@ const state = {
   history: [],
   paused: false,
   historyOffset: 0,
+  focusTimestamp: null,
+  crosshair: true,
   chartOrder: loadChartOrder(),
 };
 
@@ -65,7 +67,7 @@ function setupChartInteractions() {
   let draggedName = '';
   grid.querySelectorAll('[data-chart-panel]').forEach(panel => {
     const name = panel.dataset.chartPanel;
-    panel.querySelectorAll('.chart-move').forEach(button => button.addEventListener('click', () => moveChart(name, button.dataset.direction === 'up' ? -1 : 1)));
+    panel.querySelectorAll('.chart-move').forEach(button => button.addEventListener('click', () => moveChart(name, Number(button.dataset.move))));
     panel.querySelector('.chart-expand').addEventListener('click', event => expandChart(panel, event.currentTarget));
     panel.querySelector('.drag-handle').addEventListener('dragstart', event => {
       draggedName = name;
@@ -107,24 +109,24 @@ function setupChartInteractions() {
 
 const charts = {
   throughput: new TimeSeriesChart(element('throughputChart'), [
-    { path: 'throughput.fresh_prefill_tps', color: '#12a594' },
-    { path: 'throughput.cached_local_tps', color: '#de7b32' },
-    { path: 'throughput.external_cache_tps', color: '#4c72d9' },
-  ], { empty: 'Waiting for token counter changes' }),
+    { path: 'throughput.fresh_prefill_tps', label: 'Fresh prefill', color: '#12a594', unit: ' tok/s' },
+    { path: 'throughput.cached_local_tps', label: 'Local cache', color: '#de7b32', unit: ' tok/s' },
+    { path: 'throughput.external_cache_tps', label: 'External / LMCache', color: '#4c72d9', unit: ' tok/s' },
+  ], { empty: 'Waiting for token counter changes', onPoint: point => selectTimelinePoint(point.timestamp) }),
   decode: new TimeSeriesChart(element('decodeChart'), [
-    { path: 'throughput.decode_tps', color: '#d14f68' },
-    { path: 'speculative.draft_tps', color: '#7d5fc4' },
-    { path: 'speculative.accepted_tps', color: '#12a594' },
-  ], { empty: 'Waiting for decode or MTP token changes' }),
+    { path: 'throughput.decode_tps', label: 'Decode', color: '#d14f68', unit: ' tok/s' },
+    { path: 'speculative.draft_tps', label: 'Drafted', color: '#7d5fc4', unit: ' tok/s' },
+    { path: 'speculative.accepted_tps', label: 'Accepted', color: '#12a594', unit: ' tok/s' },
+  ], { empty: 'Waiting for decode or MTP token changes', onPoint: point => selectTimelinePoint(point.timestamp) }),
   cache: new TimeSeriesChart(element('cacheChart'), [
-    { path: 'cache.kv_usage_percent', color: '#12a594' },
-    { path: 'cache.prefix_hit_percent', color: '#de7b32' },
-    { path: 'cache.external_prefix_hit_percent', color: '#4c72d9' },
-  ], { max: 100, percent: true, empty: 'Cache metrics are not exposed yet' }),
+    { path: 'cache.kv_usage_percent', label: 'KV used', color: '#12a594', unit: '%' },
+    { path: 'cache.prefix_hit_percent', label: 'Prefix hit', color: '#de7b32', unit: '%' },
+    { path: 'cache.external_prefix_hit_percent', label: 'External hit', color: '#4c72d9', unit: '%' },
+  ], { max: 100, percent: true, empty: 'Cache metrics are not exposed yet', onPoint: point => selectTimelinePoint(point.timestamp) }),
   requests: new TimeSeriesChart(element('requestChart'), [
-    { path: 'requests.running', color: '#12a594' },
-    { path: 'requests.waiting', color: '#d14f68' },
-  ], { empty: 'Waiting for scheduler gauges' }),
+    { path: 'requests.running', label: 'Running', color: '#12a594', unit: '' },
+    { path: 'requests.waiting', label: 'Queued', color: '#d14f68', unit: '' },
+  ], { empty: 'Waiting for scheduler gauges', onPoint: point => selectTimelinePoint(point.timestamp) }),
 };
 
 async function loadInstances() {
@@ -146,6 +148,9 @@ async function selectWorkload(name) {
   state.selected = name;
   state.history = [];
   state.historyOffset = 0;
+  state.focusTimestamp = null;
+  element('exportReport').disabled = true;
+  element('logFocus').textContent = 'Live tail';
   renderInstances(state.instances, state.selected);
   if (!name) return;
   try {
@@ -184,7 +189,7 @@ async function loadSnapshot() {
 }
 
 async function loadLogs() {
-  if (state.paused || !state.selected || document.hidden) return;
+  if (state.paused || !state.selected || document.hidden || state.focusTimestamp) return;
   try {
     renderLogs(await api.logs(state.selected));
   } catch (error) {
@@ -200,7 +205,10 @@ function drawCharts() {
   const start = Math.max(0, end - windowSeconds);
   const visible = state.history.slice(start, end);
   const smoothness = Number(element('smoothness').value);
-  Object.values(charts).forEach(chart => chart.update(visible, smoothness));
+  Object.values(charts).forEach(chart => {
+    chart.setCrosshair(state.crosshair);
+    chart.update(visible, smoothness, state.focusTimestamp);
+  });
 
   const position = element('historyPosition');
   position.max = maxOffset;
@@ -210,6 +218,23 @@ function drawCharts() {
     ? `${state.historyOffset} real samples back`
     : 'Live edge';
   element('historyMeta').textContent = `${state.history.length} server-cached real samples · ${visible.length} displayed`;
+}
+
+async function selectTimelinePoint(timestamp) {
+  if (!state.selected) return;
+  state.focusTimestamp = timestamp;
+  element('exportReport').disabled = false;
+  element('logFocus').textContent = 'Loading logs near ' + new Date(timestamp).toLocaleTimeString();
+  drawCharts();
+  try {
+    const payload = await api.logsAt(state.selected, timestamp);
+    renderLogs(payload);
+    element('logFocus').textContent = 'Point ' + new Date(timestamp).toLocaleTimeString() +
+      ' · archive ±' + payload.archive_delta_seconds + 's';
+    element('logs').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch (error) {
+    element('logFocus').textContent = error.message;
+  }
 }
 
 element('instanceSelect').addEventListener('change', event => selectWorkload(event.target.value));
@@ -238,6 +263,18 @@ element('windowSize').addEventListener('change', drawCharts);
 element('historyPosition').addEventListener('input', event => {
   state.historyOffset = Number(event.target.value);
   drawCharts();
+});
+element('toggleCrosshair').addEventListener('click', event => {
+  state.crosshair = !state.crosshair;
+  event.currentTarget.textContent = state.crosshair ? 'Crosshair: On' : 'Crosshair: Off';
+  event.currentTarget.setAttribute('aria-pressed', String(state.crosshair));
+  Object.values(charts).forEach(chart => chart.setCrosshair(state.crosshair));
+});
+element('exportReport').addEventListener('click', () => {
+  if (!state.selected || !state.focusTimestamp) return;
+  const link = document.createElement('a');
+  link.href = api.reportUrl(state.selected, state.focusTimestamp);
+  link.click();
 });
 
 setupChartInteractions();
