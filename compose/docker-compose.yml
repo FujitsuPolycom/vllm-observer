@@ -40,6 +40,8 @@ services:
       retries: 3
       start_period: 10s
     environment:
+      VLLM_OBSERVER_HOST: "0.0.0.0"
+      VLLM_OBSERVER_PORT: "8088"
       VLLM_OBSERVER_DOCKER: "1"
       VLLM_OBSERVER_DISCOVERY_TERMS: "${VLLM_OBSERVER_DISCOVERY_TERMS:-}"
       VLLM_OBSERVER_LOG_TAIL: "320"
