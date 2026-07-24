@@ -1,4 +1,6 @@
 import unittest
+import subprocess
+from unittest.mock import patch
 
 from observer.collector import Collector
 
@@ -42,6 +44,12 @@ class CollectorTests(unittest.TestCase):
             self.collector.metrics_url_for("model", record),
             "http://127.0.0.1:5802/metrics",
         )
+
+    @patch("observer.collector.subprocess.run", side_effect=subprocess.TimeoutExpired(["docker", "ps"], 8))
+    def test_docker_timeout_returns_failed_result(self, _run):
+        result = self.collector._run(["docker", "ps"], timeout=8)
+        self.assertEqual(result.returncode, 124)
+        self.assertIn("timed out", result.stderr)
 
 
 if __name__ == "__main__":

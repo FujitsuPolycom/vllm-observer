@@ -32,7 +32,17 @@ class Collector:
         self.metrics_host = os.getenv("VLLM_OBSERVER_METRICS_HOST", "127.0.0.1").strip()
 
     def _run(self, args: list[str], timeout: int = 8) -> subprocess.CompletedProcess[str]:
-        return subprocess.run(args, capture_output=True, text=True, timeout=timeout, check=False)
+        try:
+            return subprocess.run(args, capture_output=True, text=True, timeout=timeout, check=False)
+        except subprocess.TimeoutExpired as exc:
+            # Docker can temporarily stall while inspecting a busy host. A
+            # failed discovery pass must not terminate the sampler thread.
+            return subprocess.CompletedProcess(
+                args=args,
+                returncode=124,
+                stdout=exc.stdout or "",
+                stderr=f"command timed out after {timeout}s",
+            )
 
     def _inspect(self, name: str) -> dict[str, Any] | None:
         if not IDENT_RE.fullmatch(name):
