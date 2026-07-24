@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import socket
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -151,6 +152,22 @@ class Collector:
                 return host_port
         return None
 
+    def _metrics_host(self) -> str:
+        """Use this container's active bridge gateway for Linux host publishing."""
+        if self.metrics_host.lower() != "host.docker.internal":
+            return self.metrics_host
+        try:
+            with open("/proc/net/route", encoding="ascii") as route_file:
+                for line in route_file.readlines()[1:]:
+                    fields = line.split()
+                    if len(fields) < 3 or fields[1] != "00000000":
+                        continue
+                    gateway = int(fields[2], 16)
+                    return socket.inet_ntoa(gateway.to_bytes(4, "little"))
+        except (OSError, ValueError):
+            pass
+        return self.metrics_host
+
     def logs(self, instance: str) -> list[str]:
         if not IDENT_RE.fullmatch(instance):
             raise ValueError("invalid instance")
@@ -186,7 +203,7 @@ class Collector:
             return ""
         if record.get("network_mode") != "host":
             port_number = self._published_port(record, port_number) or port_number
-        return f"http://{self.metrics_host}:{port_number}/metrics"
+        return f"http://{self._metrics_host()}:{port_number}/metrics"
 
     def expected_model_for(self, instance: str, record: dict[str, Any] | None = None) -> str:
         record = record or next((item for item in self.docker_instances() if item["name"] == instance), None)
