@@ -131,6 +131,26 @@ class Collector:
     def running_instances(self) -> list[dict[str, Any]]:
         return self.docker_instances(include_stopped=False) + self.file_instances()
 
+    @staticmethod
+    def _flag_value(command: str, *flags: str) -> str:
+        names = "|".join(re.escape(flag) for flag in flags)
+        match = re.search(rf"(?:^|\s)(?:{names})(?:=|\s+)([^\s]+)", command)
+        return match.group(1).strip('"\'') if match else ""
+
+    @staticmethod
+    def _published_port(record: dict[str, Any], container_port: int) -> int | None:
+        """Resolve a container port to its Docker-published host port."""
+        ports = record.get("ports") or {}
+        bindings = ports.get(f"{container_port}/tcp") or ports.get(f"{container_port}/udp") or []
+        for binding in bindings:
+            try:
+                host_port = int(binding.get("HostPort", ""))
+            except (AttributeError, TypeError, ValueError):
+                continue
+            if 1 <= host_port <= 65535:
+                return host_port
+        return None
+
     def logs(self, instance: str) -> list[str]:
         if not IDENT_RE.fullmatch(instance):
             raise ValueError("invalid instance")
@@ -157,14 +177,15 @@ class Collector:
         port = env.get("PORT") or env.get("VLLM_PORT")
         if not port:
             command = record.get("command", "")
-            match = re.search(r"(?:^|\s)--port(?:=|\s+)(\d{1,5})(?:\s|$)", command)
-            port = match.group(1) if match else ""
+            port = self._flag_value(command, "--port")
         try:
             port_number = int(port)
         except (TypeError, ValueError):
             return ""
         if not 1 <= port_number <= 65535:
             return ""
+        if record.get("network_mode") != "host":
+            port_number = self._published_port(record, port_number) or port_number
         return f"http://{self.metrics_host}:{port_number}/metrics"
 
     def expected_model_for(self, instance: str, record: dict[str, Any] | None = None) -> str:
@@ -172,7 +193,10 @@ class Collector:
         if not record:
             return ""
         env = record.get("env", {})
-        return env.get("SERVED_MODEL_NAME") or Path(env.get("MODEL", "")).name
+        if env.get("SERVED_MODEL_NAME"):
+            return env["SERVED_MODEL_NAME"]
+        command = record.get("command", "")
+        return self._flag_value(command, "--served-model-name", "--model") or Path(env.get("MODEL", "")).name
 
     def compose_template(self, instance: str) -> str:
         """Build a best-effort, editable Compose recreation of a discovered container."""
