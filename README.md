@@ -202,6 +202,14 @@ The Prometheus sampler calculates:
 
 Logger output is displayed separately and is never used as a performance fallback. Chart interpolation only adds visual points between real server samples; the real points remain visible.
 
+The Observer also understands the optional `vllm:prefill_tokens_scheduled_total`
+counter from the FujitsuPolycom/vLLM instrumentation branch. When present, the
+Fresh prefill series uses scheduler-issued fresh prompt work, so chunked
+prefills can appear while they are still running instead of arriving only with
+the first generated token. The API reports `fresh_prefill_source: "scheduler"`
+when this source is active; other vLLM builds retain their existing Prometheus
+counter behavior until they expose the new metric.
+
 ## Development
 
 ```bash

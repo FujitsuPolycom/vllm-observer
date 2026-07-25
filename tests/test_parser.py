@@ -67,6 +67,24 @@ vllm:num_requests_waiting{model_name="glm-5.2"} 0
         self.assertEqual(result["speculative"]["accepted_tps"], 5)
         self.assertEqual(result["requests"]["running"], 3)
 
+    def test_scheduler_prefill_counter_is_preferred(self):
+        before = parse_samples("""
+vllm:prompt_tokens_total 100
+vllm:prompt_tokens_cached_total 0
+vllm:prompt_tokens_by_source_total{source="local_compute"} 100
+vllm:prefill_tokens_scheduled_total 0
+""")
+        after = parse_samples("""
+vllm:prompt_tokens_total 1000
+vllm:prompt_tokens_cached_total 0
+vllm:prompt_tokens_by_source_total{source="local_compute"} 1000
+vllm:prefill_tokens_scheduled_total 300
+""")
+        result = normalize(before, after, 1)
+        self.assertEqual(result["throughput"]["fresh_prefill_tps"], 300)
+        self.assertEqual(result["fresh_prefill_source"], "scheduler")
+        self.assertTrue(result["capabilities"]["live_prefill_counter"])
+
     def test_performance_metrics(self):
         result = metrics(SAMPLE)
         self.assertEqual(result["prompt_tokens_per_second"], 3071.8)

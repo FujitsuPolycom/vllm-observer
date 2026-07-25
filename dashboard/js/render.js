@@ -23,6 +23,7 @@ const capabilityDefinitions = [
   ['external_cache', 'External cache / LMCache', 'Reports external prefix queries or transferred prompt tokens.'],
   ['prefix_cache', 'Prefix cache', 'Reports prefix-cache query and hit counters.'],
   ['speculative_decoding', 'MTP / speculative decoding', 'Reports drafted and accepted token counters.'],
+  ['live_prefill_counter', 'Live scheduler prefill', 'Uses scheduler-issued fresh prompt tokens while chunked prefill is in progress.'],
 ];
 
 export function renderInstances(instances, selected) {
@@ -55,7 +56,12 @@ export function renderSnapshot(point) {
     diagnostic.innerHTML = `<strong>${escapeHtml(statusTitle(point.status))}.</strong> ${escapeHtml(point.error || 'No telemetry is available yet.')}`;
   }
 
+  const schedulerPrefill = point.fresh_prefill_source === 'scheduler';
   const cards = metricDefinitions.map(([path, label, unit, note]) => {
+    if (path === 'throughput.fresh_prefill_tps' && schedulerPrefill) {
+      label = 'Fresh prefill (live)';
+      note = 'Scheduler-issued fresh prompt work; updates during chunked prefill';
+    }
     const value = get(point, path);
     const available = Number.isFinite(Number(value));
     return `<article class="metric-card ${available ? '' : 'unavailable'}">
@@ -152,6 +158,14 @@ export function renderLogs(payload) {
     ['requests', 'Requests / serving'],
     ['other', 'Startup / other'],
   ];
+  const scrollState = new Map([...element('logs').querySelectorAll('.log-group')].map(group => {
+    const lines = group.querySelector('.log-lines');
+    if (!lines) return [group.dataset.group, null];
+    return [group.dataset.group, {
+      scrollTop: lines.scrollTop,
+      followTail: lines.scrollHeight - lines.clientHeight - lines.scrollTop <= 24,
+    }];
+  }));
   const open = new Set([...element('logs').querySelectorAll('details[open]')].map(node => node.dataset.group));
   element('logs').innerHTML = definitions.map(([key, label]) => {
     const lines = groups[key] || [];
@@ -161,15 +175,25 @@ export function renderLogs(payload) {
     </details>`;
   }).join('');
   element('logMeta').textContent = `${payload.lines?.length || 0} lines`;
-  if (focusLine) {
-    const focusedLine = [...element('logs').querySelectorAll('.log-lines > div')]
-      .find(line => line.textContent === focusLine);
-    if (focusedLine) {
-      focusedLine.classList.add('log-focus');
-      focusedLine.closest('details').open = true;
-      focusedLine.scrollIntoView({ block: 'center' });
+  const restoreLogView = () => {
+    element('logs').querySelectorAll('.log-group').forEach(group => {
+      const lines = group.querySelector('.log-lines');
+      if (!lines) return;
+      const previous = scrollState.get(group.dataset.group);
+      if (!previous || previous.followTail) lines.scrollTop = lines.scrollHeight;
+      else lines.scrollTop = previous.scrollTop;
+    });
+    if (focusLine) {
+      const focusedLine = [...element('logs').querySelectorAll('.log-lines > div')]
+        .find(line => line.textContent === focusLine);
+      if (focusedLine) {
+        focusedLine.classList.add('log-focus');
+        focusedLine.closest('details').open = true;
+        focusedLine.scrollIntoView({ block: 'center' });
+      }
     }
-  }
+  };
+  requestAnimationFrame(restoreLogView);
 }
 
 function renderRequestAnalytics(point) {
