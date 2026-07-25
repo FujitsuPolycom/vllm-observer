@@ -101,6 +101,13 @@ def normalize(previous: list[Sample], current: list[Sample], elapsed: float) -> 
     gauge = lambda *names, labels=None: _total(current, *names, labels=labels)
 
     prompt = counter("vllm:prompt_tokens_total", "vllm_prompt_tokens_total")
+    # Newer FujitsuPolycom/vLLM builds expose this scheduler-driven counter.
+    # Prefer it because request-level prompt accounting can arrive in a lump
+    # when a long prefill finally produces its first output.
+    scheduled_prefill = counter(
+        "vllm:prefill_tokens_scheduled_total",
+        "vllm_prefill_tokens_scheduled_total",
+    )
     cached = counter("vllm:prompt_tokens_cached_total", "vllm_prompt_tokens_cached_total")
     decode = counter("vllm:generation_tokens_total", "vllm_generation_tokens_total")
     local_compute = counter(
@@ -116,7 +123,7 @@ def normalize(previous: list[Sample], current: list[Sample], elapsed: float) -> 
         labels={"source": "external_kv_transfer"},
     )
 
-    fresh = local_compute if local_compute is not None else (
+    fresh = scheduled_prefill if scheduled_prefill is not None else local_compute if local_compute is not None else (
         max(0.0, prompt - cached) if prompt is not None and cached is not None else None
     )
     cached_local = local_cache if local_cache is not None else (
@@ -167,9 +174,13 @@ def normalize(previous: list[Sample], current: list[Sample], elapsed: float) -> 
         "speculative": _without_none(speculative),
         "requests": _without_none(requests),
         "request_analytics": analytics,
+        "fresh_prefill_source": "scheduler" if scheduled_prefill is not None else (
+            "prompt_source" if local_compute is not None else "prompt_minus_cache"
+        ),
         "models": model_names(current),
         "capabilities": {
             "prompt_source_breakdown": local_compute is not None,
+            "live_prefill_counter": scheduled_prefill is not None,
             "prefix_cache": prefix_queries is not None,
             "external_cache": external_queries is not None or external_cache is not None,
             "speculative_decoding": draft_tokens is not None,
