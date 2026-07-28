@@ -93,8 +93,11 @@ export class TimeSeriesChart {
     this.tooltip.className = 'chart-tooltip';
     this.tooltip.hidden = true;
     canvas.parentElement.appendChild(this.tooltip);
+    this.zoomLevel = 1;
+    this.zoomCenter = 0.5;
     this.canvas.tabIndex = 0;
     this.canvas.addEventListener('pointermove', event => this.handlePointerMove(event));
+    this.canvas.addEventListener('wheel', event => this.handleWheel(event), { passive: false });
     this.canvas.addEventListener('pointerleave', () => {
       this.hoverTimestamp = null;
       this.tooltip.hidden = true;
@@ -135,6 +138,60 @@ export class TimeSeriesChart {
     this.draw();
   }
 
+  getZoomedRange() {
+    if (!this.points.length) return { minTime: Date.now(), maxTime: Date.now() + 1000 };
+    const fullMin = this.points[0].timestamp;
+    const fullMax = this.points.at(-1).timestamp;
+    const fullSpan = Math.max(1000, fullMax - fullMin);
+    const halfRange = fullSpan / (2 * this.zoomLevel);
+    const centerTime = fullMin + fullSpan * this.zoomCenter;
+    const minTime = Math.max(fullMin, centerTime - halfRange);
+    const maxTime = Math.min(fullMax, centerTime + halfRange);
+    return { minTime, maxTime };
+  }
+
+  setZoom(level, center) {
+    this.zoomLevel = Math.max(1, Math.min(50, level));
+    this.zoomCenter = Math.max(0, Math.min(1, center));
+    this.draw();
+  }
+
+  resetZoom() {
+    this.zoomLevel = 1;
+    this.zoomCenter = 0.5;
+    this.draw();
+  }
+
+  zoomBy(factor, anchorFraction) {
+    if (!this.points.length) return;
+    const { minTime, maxTime } = this.getZoomedRange();
+    const timeSpan = maxTime - minTime;
+    const anchorTime = minTime + anchorFraction * timeSpan;
+    const newLevel = Math.max(1, Math.min(50, this.zoomLevel * factor));
+    if (newLevel === this.zoomLevel) return;
+    const fullMin = this.points[0].timestamp;
+    const fullMax = this.points.at(-1).timestamp;
+    const fullSpan = Math.max(1000, fullMax - fullMin);
+    let newCenter = (anchorTime - fullMin) / fullSpan;
+    const halfRangeFraction = 1 / (2 * newLevel);
+    newCenter = Math.max(halfRangeFraction, Math.min(1 - halfRangeFraction, newCenter));
+    this.zoomLevel = newLevel;
+    this.zoomCenter = newCenter;
+    this.options.onZoom?.(this.zoomLevel, this.zoomCenter);
+    this.draw();
+  }
+
+  handleWheel(event) {
+    if (!this.points.length) return;
+    event.preventDefault();
+    const rect = this.canvas.getBoundingClientRect();
+    const margin = { left: 52, right: 16 };
+    const plotWidth = Math.max(1, rect.width - margin.left - margin.right);
+    const mouseFraction = Math.max(0, Math.min(1, (event.clientX - rect.left - margin.left) / plotWidth));
+    const factor = event.deltaY > 0 ? 1 / 1.3 : 1.3;
+    this.zoomBy(factor, mouseFraction);
+  }
+
   setSeriesVisible(path, visible) {
     if (visible) this.visibleSeries.add(path);
     else this.visibleSeries.delete(path);
@@ -159,15 +216,13 @@ export class TimeSeriesChart {
     const margin = { left: 52, right: 16 };
     const plotWidth = Math.max(1, rect.width - margin.left - margin.right);
     const fraction = Math.max(0, Math.min(1, (clientX - rect.left - margin.left) / plotWidth));
-    const minTime = this.points[0]?.timestamp || Date.now();
-    const maxTime = this.points.at(-1)?.timestamp || minTime + 1000;
+    const { minTime, maxTime } = this.getZoomedRange();
     return minTime + (maxTime - minTime) * fraction;
   }
 
   localXForTimestamp(timestamp) {
     const margin = { left: 52, right: 16 };
-    const minTime = this.points[0]?.timestamp || Date.now();
-    const maxTime = this.points.at(-1)?.timestamp || minTime + 1000;
+    const { minTime, maxTime } = this.getZoomedRange();
     const fraction = Math.max(0, Math.min(1, (timestamp - minTime) / Math.max(1, maxTime - minTime)));
     return margin.left + fraction * Math.max(1, this.canvas.clientWidth - margin.left - margin.right);
   }
@@ -257,8 +312,10 @@ export class TimeSeriesChart {
     const margin = { top: 18, right: 16, bottom: 30, left: 52 };
     const plotWidth = width - margin.left - margin.right;
     const plotHeight = height - margin.top - margin.bottom;
+    const { minTime, maxTime } = this.getZoomedRange();
+    const zoomedPoints = this.points.filter(point => point.timestamp >= minTime && point.timestamp <= maxTime);
     const available = this.series.filter(series => this.visibleSeries.has(series.path)).flatMap(series =>
-      this.points
+      zoomedPoints
         .map(point => Number(pick(point, series.path)))
         .filter(Number.isFinite)
     );
@@ -283,8 +340,6 @@ export class TimeSeriesChart {
         yTicks = [0, step, step * 2, step * 3, max];
       }
     }
-    const minTime = this.points[0]?.timestamp || Date.now();
-    const maxTime = this.points.at(-1)?.timestamp || minTime + 1000;
     const timeSpan = Math.max(1000, maxTime - minTime);
     const x = value => margin.left + ((value - minTime) / timeSpan) * plotWidth;
     const y = value => margin.top + plotHeight - (Math.max(0, value) / max) * plotHeight;
@@ -334,7 +389,7 @@ export class TimeSeriesChart {
 
     this.series.forEach(series => {
       if (!this.visibleSeries.has(series.path)) return;
-      const realPoints = this.points
+      const realPoints = zoomedPoints
         .map(point => ({ x: point.timestamp, y: Number(pick(point, series.path)), real: true }))
         .filter(point => Number.isFinite(point.y));
       if (!realPoints.length) return;
@@ -370,6 +425,13 @@ export class TimeSeriesChart {
         context.fill();
       });
     });
+
+    if (this.zoomLevel > 1.01) {
+      context.fillStyle = muted;
+      context.font = '10px ui-monospace, monospace';
+      context.textAlign = 'left';
+      context.fillText(`\u00d7${this.zoomLevel.toFixed(1)} zoom`, margin.left + 4, margin.top + 12);
+    }
   }
 }
 

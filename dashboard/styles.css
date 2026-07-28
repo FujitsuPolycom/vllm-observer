@@ -251,7 +251,20 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .chart-move, .chart-pause, .chart-expand { cursor: pointer; }
 .chart-pause { display: none; cursor: pointer; }
 .chart-panel.is-expanded .chart-pause { display: inline-flex; }
-.chart-move:hover, .chart-pause:hover, .chart-expand:hover { border-color: var(--accent); color: var(--accent-dark); }
+.chart-move:hover, .chart-pause:hover, .chart-expand:hover,
+.chart-zoom-in:hover, .chart-zoom-out:hover, .chart-zoom-reset:hover { border-color: var(--accent); color: var(--accent-dark); }
+.chart-zoom-in, .chart-zoom-out, .chart-zoom-reset {
+  min-height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0 7px;
+  color: var(--muted);
+  background: var(--panel-alt);
+  font: 10px ui-monospace, SFMono-Regular, Consolas, monospace;
+  cursor: pointer;
+}
+.chart-zoom-in, .chart-zoom-out { width: 28px; padding: 0; font-size: 14px; }
+.chart-zoom-reset { font-size: 9px; }
 body.chart-expanded { overflow: hidden; }
 .panel-heading { display: flex; justify-content: space-between; gap: 16px; padding: 10px 12px 5px; }
 .panel-heading p { margin: 4px 0 0; color: var(--muted); font-size: 11px; }

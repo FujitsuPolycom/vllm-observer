@@ -19,6 +19,7 @@ const state = {
   focusTimestamp: null,
   crosshair: true,
   syncCrosshair: false,
+  syncZoom: false,
   bridgeGaps: true,
   chartOrder: loadChartOrder(),
 };
@@ -159,12 +160,20 @@ function clearHover() {
   Object.values(charts).forEach(chart => chart.setHoverTimestamp(null));
 }
 
+let syncingZoom = false;
+function syncZoomLevel(level, center) {
+  if (!state.syncZoom || syncingZoom) return;
+  syncingZoom = true;
+  Object.values(charts).forEach(chart => chart.setZoom(level, center));
+  syncingZoom = false;
+}
+
 const charts = {
   throughput: new TimeSeriesChart(element('throughputChart'), [
     { path: 'throughput.fresh_prefill_tps', label: 'Fresh prefill', color: '#12a594', unit: ' tok/s' },
     { path: 'throughput.cached_local_tps', label: 'Local cache', color: '#de7b32', unit: ' tok/s' },
     { path: 'throughput.external_cache_tps', label: 'External / LMCache', color: '#4c72d9', unit: ' tok/s' },
-  ], { empty: 'Waiting for token counter changes', onPoint: point => selectTimelinePoint(point.timestamp), onHover: syncHover, onLeave: clearHover }),
+  ], { empty: 'Waiting for token counter changes', onPoint: point => selectTimelinePoint(point.timestamp), onHover: syncHover, onLeave: clearHover, onZoom: syncZoomLevel }),
   decode: new TimeSeriesChart(element('decodeChart'), [
     { path: 'throughput.decode_tps', label: 'Decode', color: '#d14f68', unit: ' tok/s' },
     { path: 'speculative.draft_tps', label: 'Drafted', color: '#7d5fc4', unit: ' tok/s' },
@@ -174,6 +183,7 @@ const charts = {
     onPoint: point => selectTimelinePoint(point.timestamp),
     onHover: syncHover,
     onLeave: clearHover,
+    onZoom: syncZoomLevel,
     tooltipRows: valueAt => {
       const running = valueAt('requests.running');
       const decode = valueAt('throughput.decode_tps');
@@ -187,11 +197,11 @@ const charts = {
     { path: 'cache.kv_usage_percent', label: 'KV used', color: '#12a594', unit: '%' },
     { path: 'cache.prefix_hit_percent', label: 'Prefix hit', color: '#de7b32', unit: '%' },
     { path: 'cache.external_prefix_hit_percent', label: 'External hit', color: '#4c72d9', unit: '%' },
-  ], { max: 100, percent: true, empty: 'Cache metrics are not exposed yet', onPoint: point => selectTimelinePoint(point.timestamp), onHover: syncHover, onLeave: clearHover }),
+  ], { max: 100, percent: true, empty: 'Cache metrics are not exposed yet', onPoint: point => selectTimelinePoint(point.timestamp), onHover: syncHover, onLeave: clearHover, onZoom: syncZoomLevel }),
   requests: new TimeSeriesChart(element('requestChart'), [
     { path: 'requests.running', label: 'Running', color: '#12a594', unit: '' },
     { path: 'requests.waiting', label: 'Queued', color: '#d14f68', unit: '' },
-  ], { discrete: true, empty: 'Waiting for scheduler gauges', onPoint: point => selectTimelinePoint(point.timestamp), onHover: syncHover, onLeave: clearHover }),
+  ], { discrete: true, empty: 'Waiting for scheduler gauges', onPoint: point => selectTimelinePoint(point.timestamp), onHover: syncHover, onLeave: clearHover, onZoom: syncZoomLevel }),
 };
 
 async function loadInstances() {
@@ -214,6 +224,7 @@ async function selectWorkload(name) {
   state.history = [];
   state.historyOffset = 0;
   state.focusTimestamp = null;
+  Object.values(charts).forEach(chart => chart.resetZoom());
   element('exportReport').disabled = true;
   element('clearPin').disabled = true;
   element('logFocus').textContent = 'Live tail';
@@ -343,7 +354,10 @@ element('smoothness').addEventListener('input', event => {
   element('smoothnessValue').textContent = event.target.value;
   drawCharts();
 });
-element('windowSize').addEventListener('change', drawCharts);
+element('windowSize').addEventListener('change', () => {
+  Object.values(charts).forEach(chart => chart.resetZoom());
+  drawCharts();
+});
 element('historyPosition').addEventListener('input', event => {
   state.historyOffset = Number(event.target.value);
   drawCharts();
@@ -358,6 +372,15 @@ element('syncCrosshair').addEventListener('click', event => {
   event.currentTarget.textContent = state.syncCrosshair ? 'Sync hover: On' : 'Sync hover: Off';
   event.currentTarget.setAttribute('aria-pressed', String(state.syncCrosshair));
   if (!state.syncCrosshair) clearHover();
+});
+element('syncZoom').addEventListener('click', event => {
+  state.syncZoom = !state.syncZoom;
+  event.currentTarget.textContent = state.syncZoom ? 'Sync zoom: On' : 'Sync zoom: Off';
+  event.currentTarget.setAttribute('aria-pressed', String(state.syncZoom));
+  if (state.syncZoom) {
+    const reference = Object.values(charts)[0];
+    Object.values(charts).forEach(chart => chart.setZoom(reference.zoomLevel, reference.zoomCenter));
+  }
 });
 element('bridgeGaps').addEventListener('click', event => {
   state.bridgeGaps = !state.bridgeGaps;
@@ -391,8 +414,22 @@ element('exportReport').addEventListener('click', () => {
   link.click();
 });
 
+function setupZoomControls() {
+  document.querySelectorAll('[data-chart-panel]').forEach(panel => {
+    const chart = charts[panel.dataset.chartPanel];
+    if (!chart) return;
+    panel.querySelector('.chart-zoom-in')?.addEventListener('click', () => chart.zoomBy(1.5, 0.5));
+    panel.querySelector('.chart-zoom-out')?.addEventListener('click', () => chart.zoomBy(1 / 1.5, 0.5));
+    panel.querySelector('.chart-zoom-reset')?.addEventListener('click', () => {
+      chart.resetZoom();
+      if (state.syncZoom) Object.values(charts).forEach(c => c.resetZoom());
+    });
+  });
+}
+
 setupChartInteractions();
 setupSeriesToggles();
+setupZoomControls();
 applyColorMode(loadColorMode());
 element('timezoneSelect').options[0].textContent = `Browser local (${localTimezone()})`;
 await loadInstances();
