@@ -87,17 +87,20 @@ export class TimeSeriesChart {
     this.crosshairEnabled = true;
     this.gapLimit = 5000;
     this.bridgeGaps = true;
+    this.zoomLevel = 1;
+    this.zoomCenter = 0.5;
+    this.isDragging = false;
+    this.wasDragging = false;
     this.visibleSeries = new Set(series.map(item => item.path));
     this.tooltipAnchor = null;
     this.tooltip = document.createElement('div');
     this.tooltip.className = 'chart-tooltip';
     this.tooltip.hidden = true;
     canvas.parentElement.appendChild(this.tooltip);
-    this.zoomLevel = 1;
-    this.zoomCenter = 0.5;
     this.canvas.tabIndex = 0;
     this.canvas.addEventListener('pointermove', event => this.handlePointerMove(event));
     this.canvas.addEventListener('wheel', event => this.handleWheel(event), { passive: false });
+    this.canvas.addEventListener('pointerdown', event => this.handlePointerDown(event));
     this.canvas.addEventListener('pointerleave', () => {
       this.hoverTimestamp = null;
       this.tooltip.hidden = true;
@@ -105,6 +108,7 @@ export class TimeSeriesChart {
       this.draw();
     });
     this.canvas.addEventListener('click', event => {
+      if (this.wasDragging) { this.wasDragging = false; return; }
       if (!this.points.length || !this.options.onPoint) return;
       const target = this.timestampAtClientX(event.clientX);
       const point = this.points.reduce((nearest, candidate) =>
@@ -192,6 +196,47 @@ export class TimeSeriesChart {
     this.zoomBy(factor, mouseFraction);
   }
 
+  handlePointerDown(event) {
+    if (!this.points.length || this.zoomLevel <= 1.01) return;
+    this.isDragging = true;
+    this.wasDragging = false;
+    this.dragStartX = event.clientX;
+    this.dragStartCenter = this.zoomCenter;
+    this.canvas.setPointerCapture(event.pointerId);
+    this.canvas.addEventListener('pointermove', this.dragMoveHandler = event => this.handleDragMove(event));
+    this.canvas.addEventListener('pointerup', this.dragEndHandler = event => this.handleDragEnd(event), { once: true });
+  }
+
+  handleDragMove(event) {
+    if (!this.isDragging) return;
+    const rect = this.canvas.getBoundingClientRect();
+    const margin = { left: 52, right: 16 };
+    const plotWidth = Math.max(1, rect.width - margin.left - margin.right);
+    const dx = event.clientX - this.dragStartX;
+    if (Math.abs(dx) > 3) this.wasDragging = true;
+    const fullMin = this.points[0].timestamp;
+    const fullMax = this.points.at(-1).timestamp;
+    const fullSpan = Math.max(1000, fullMax - fullMin);
+    const fractionShift = dx / plotWidth / this.zoomLevel;
+    let newCenter = this.dragStartCenter - fractionShift;
+    const halfRangeFraction = 1 / (2 * this.zoomLevel);
+    newCenter = Math.max(halfRangeFraction, Math.min(1 - halfRangeFraction, newCenter));
+    this.zoomCenter = newCenter;
+    this.options.onZoom?.(this.zoomLevel, this.zoomCenter);
+    this.draw();
+  }
+
+  handleDragEnd(event) {
+    this.isDragging = false;
+    if (this.dragMoveHandler) {
+      this.canvas.removeEventListener('pointermove', this.dragMoveHandler);
+      this.dragMoveHandler = null;
+    }
+    if (event && event.pointerId !== undefined) {
+      try { this.canvas.releasePointerCapture(event.pointerId); } catch (e) { /* already released */ }
+    }
+  }
+
   setSeriesVisible(path, visible) {
     if (visible) this.visibleSeries.add(path);
     else this.visibleSeries.delete(path);
@@ -228,6 +273,7 @@ export class TimeSeriesChart {
   }
 
   handlePointerMove(event) {
+    if (this.isDragging) return;
     if (!this.crosshairEnabled || !this.points.length) return;
     this.hoverTimestamp = this.timestampAtClientX(event.clientX);
     this.options.onHover?.(this.hoverTimestamp);
