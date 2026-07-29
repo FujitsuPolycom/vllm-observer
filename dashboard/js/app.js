@@ -160,6 +160,7 @@ function clearHover() {
   Object.values(charts).forEach(chart => chart.setHoverTimestamp(null));
 }
 
+let consecutiveSnapshotErrors = 0;
 let syncingZoom = false;
 function syncZoomLevel(level, center) {
   if (!state.syncZoom || syncingZoom) return;
@@ -212,6 +213,8 @@ async function loadInstances() {
     if (!state.instances.some(item => item.name === state.selected)) {
       state.selected = running?.name || state.instances[0]?.name || '';
       await selectWorkload(state.selected);
+    } else if (state.history.length === 0) {
+      await selectWorkload(state.selected);
     }
     renderInstances(state.instances, state.selected);
   } catch (error) {
@@ -263,8 +266,14 @@ async function loadSnapshot() {
     }
     drawCharts();
     setConnection(point.status === 'ok' ? 'ok' : 'pending', point.status === 'ok' ? 'Live' : 'Waiting');
+    consecutiveSnapshotErrors = 0;
   } catch (error) {
+    consecutiveSnapshotErrors++;
     setConnection('error', 'API unavailable');
+    if (consecutiveSnapshotErrors >= 3) {
+      consecutiveSnapshotErrors = 0;
+      loadInstances();
+    }
   }
 }
 
