@@ -29,6 +29,7 @@ const state = {
   fullLogPaused: false,
   fullLogFilter: '',
   fullLogLines: [],
+  refreshGeneration: 0,
 };
 
 function loadColorMode() {
@@ -230,6 +231,7 @@ async function loadInstances() {
 }
 
 async function selectWorkload(name) {
+  const generation = ++state.refreshGeneration;
   state.selected = name;
   state.history = [];
   state.historyOffset = 0;
@@ -249,6 +251,7 @@ async function selectWorkload(name) {
       api.config(name),
       api.logs(name),
     ]);
+    if (generation !== state.refreshGeneration) return;
     state.history = history.points || [];
     window.__observerConfig = config;
     renderConfiguration(config);
@@ -269,8 +272,10 @@ async function selectWorkload(name) {
 
 async function loadSnapshot() {
   if (state.paused || !state.selected || document.hidden) return;
+  const generation = state.refreshGeneration;
   try {
     const point = await api.snapshot(state.selected);
+    if (generation !== state.refreshGeneration || document.hidden) return;
     renderSnapshot(point);
     renderModelDetails(point, window.__observerConfig);
     renderLMCache(point);
@@ -293,11 +298,13 @@ async function loadSnapshot() {
 
 async function loadLogs() {
   if (state.paused || !state.selected || document.hidden || state.focusTimestamp) return;
+  const generation = state.refreshGeneration;
   try {
     const logs = await api.logs(state.selected);
     renderLogs(logs);
     renderFullLogs(logs, { follow: state.fullLogFollow, filter: state.fullLogFilter });
     state.fullLogLines = logs.lines || [];
+    if (generation !== state.refreshGeneration || document.hidden || state.focusTimestamp) return;
   } catch (error) {
     element('logMeta').textContent = error.message;
   }
@@ -496,7 +503,18 @@ async function loadFullLog() {
     element('fullLogMeta').textContent = error.message;
   }
 }
-
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden || state.paused || !state.selected) return;
+  // Background timer throttling can leave a stale cursor and hover state.
+  state.refreshGeneration += 1;
+  state.historyOffset = 0;
+  clearHover();
+  drawCharts();
+  loadInstances();
+  loadSnapshot();
+  loadLogs();
+  loadFullLog();
+});
 setupChartInteractions();
 setupSeriesToggles();
 setupZoomControls();

@@ -442,9 +442,9 @@ export class TimeSeriesChart {
       context.strokeStyle = series.color;
       context.lineWidth = 2;
       context.lineJoin = 'round';
-      const segments = this.options.discrete || !this.bridgeGaps
-        ? splitAtGaps(realPoints, this.gapLimit)
-        : [realPoints];
+      // Bridge ordinary sampling jitter, but never invent a curve across a
+      // genuinely missing interval after a backgrounded tab resumes.
+      const segments = splitAtGaps(realPoints, this.gapLimit);
       segments.forEach(segment => {
         const displayPoints = this.options.discrete ? segment : interpolate(segment, this.subdivisions);
         context.beginPath();
