@@ -17,7 +17,7 @@ from .prometheus import Sample, model_names, normalize, parse_samples
 
 
 class MetricSampler:
-    def __init__(self, collector: Collector, fetch=None) -> None:
+    def __init__(self, collector: Collector, fetch=None, fetch_json=None) -> None:
         self.collector = collector
         self.interval = max(0.25, float(os.getenv("VLLM_OBSERVER_SAMPLE_SECONDS", "1")))
         self.max_points = max(60, int(os.getenv("VLLM_OBSERVER_HISTORY_POINTS", "3600")))
@@ -36,6 +36,7 @@ class MetricSampler:
         self.analytics_file = Path(data_dir) / "analytics-history.json" if data_dir else None
         self.log_history_file = Path(data_dir) / "log-history.json" if data_dir else None
         self._fetch = fetch or self._fetch_url
+        self._fetch_json_fn = fetch_json or self._fetch_json
         self._history: dict[str, deque[dict[str, Any]]] = defaultdict(
             lambda: deque(maxlen=self.max_points)
         )
@@ -98,6 +99,7 @@ class MetricSampler:
         monotonic = time.monotonic()
         url = self.collector.metrics_url_for(instance, record)
         expected_model = self.collector.expected_model_for(instance, record)
+        lmcache_url = self.collector.lmcache_url_for(instance, record)
         base = {
             "instance": instance,
             "timestamp": round(wall_time * 1000),
@@ -131,11 +133,13 @@ class MetricSampler:
 
         elapsed = monotonic - previous[0]
         telemetry = normalize(previous[1], current, elapsed)
+        lmcache_health = self._poll_lmcache_health(lmcache_url)
         point = {
             **base,
             "status": "ok",
             "sample_seconds": round(elapsed, 3),
             **telemetry,
+            "lmcache_health": lmcache_health,
         }
         with self._lock:
             self._status[instance] = point
@@ -257,6 +261,57 @@ class MetricSampler:
         request = Request(url, headers={"Accept": "text/plain; version=0.0.4"})
         with urlopen(request, timeout=3) as response:
             return response.read().decode("utf-8", errors="replace")
+
+    def _fetch_json(self, url: str, timeout: float = 2.0) -> dict[str, Any] | None:
+        """Fetch JSON from an HTTP endpoint, returning None on any error.
+
+        Uses the injected fetch function (self._fetch) so tests can stub
+        HTTP calls. Falls back to urlopen if self._fetch is the default
+        URL fetcher and the caller wants a shorter timeout.
+        """
+        try:
+            text = self._fetch(url)
+            return json.loads(text)
+        except Exception:
+            return None
+
+    def _poll_lmcache_health(self, base_url: str) -> dict[str, Any]:
+        """Poll LMCache HTTP API health endpoints.
+
+        Returns a dict with health status, engine info, and periodic thread
+        health. Returns empty dict if no LMCache URL is configured or all
+        endpoints are unreachable.
+        """
+        if not base_url:
+            return {}
+        result: dict[str, Any] = {"url": base_url}
+        # GET /healthcheck — basic liveness probe
+        health = self._fetch_json_fn(f"{base_url}/healthcheck")
+        if health is not None:
+            result["healthcheck"] = health
+        else:
+            result["healthcheck"] = None
+        # GET /status — detailed engine state
+        status = self._fetch_json(f"{base_url}/status")
+        if status is not None:
+            result["status"] = {
+                "is_healthy": status.get("is_healthy"),
+                "engine_type": status.get("engine_type"),
+                "chunk_size": status.get("chunk_size"),
+                "hash_algorithm": status.get("hash_algorithm"),
+                "active_sessions": status.get("active_sessions"),
+                "registered_gpu_ids": status.get("registered_gpu_ids"),
+                "active_prefetch_jobs": status.get("active_prefetch_jobs"),
+                "storage_healthy": (status.get("storage_manager") or {}).get("is_healthy"),
+            }
+        # GET /periodic-threads-health — thread health check
+        threads = self._fetch_json(f"{base_url}/periodic-threads-health")
+        if threads is not None:
+            result["periodic_threads"] = threads
+        # If we got nothing at all, the URL was configured but unreachable
+        if not health and not status and not threads:
+            result["unreachable"] = True
+        return result
 
     def _load(self) -> None:
         if self.history_file and self.history_file.is_file():

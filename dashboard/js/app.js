@@ -5,6 +5,7 @@ import {
   renderConfiguration,
   renderFullLogs,
   renderInstances,
+  renderLMCache,
   renderLogs,
   renderModelDetails,
   renderSnapshot,
@@ -257,6 +258,7 @@ async function selectWorkload(name) {
     const point = state.history.at(-1) || await api.snapshot(name);
     renderSnapshot(point);
     renderModelDetails(point, config);
+    renderLMCache(point);
     drawCharts();
   } catch (error) {
     setConnection('error', 'Workload read failed');
@@ -271,6 +273,7 @@ async function loadSnapshot() {
     const point = await api.snapshot(state.selected);
     renderSnapshot(point);
     renderModelDetails(point, window.__observerConfig);
+    renderLMCache(point);
     if (point.status === 'ok' && !state.history.some(item => item.timestamp === point.timestamp)) {
       state.history.push(point);
       state.history = state.history.slice(-3600);

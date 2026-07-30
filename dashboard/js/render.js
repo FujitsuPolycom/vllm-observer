@@ -312,6 +312,102 @@ export function renderModelDetails(point, config) {
   }
 }
 
+export function renderLMCache(point) {
+  const body = element('lmcacheBody');
+  const meta = element('lmcacheMeta');
+  if (!body) return;
+
+  const health = point?.lmcache_health || {};
+  const prom = point?.lmcache_prometheus || {};
+
+  // No LMCache detected at all
+  if (!Object.keys(health).length && !Object.keys(prom).length) {
+    body.innerHTML = '<div class="empty">No LMCache detected on this workload. Set LMCACHE_* env vars or configure VLLM_OBSERVER_LMCACHE_URL.</div>';
+    if (meta) meta.textContent = 'Not detected';
+    return;
+  }
+
+  const parts = [];
+
+  // Health badge
+  const hc = health.healthcheck;
+  const statusObj = health.status || {};
+  const promHealthy = prom.is_healthy !== undefined ? prom.is_healthy === 1 : null;
+  const isHealthy = hc?.status === 'healthy' || statusObj.is_healthy === true || promHealthy === true;
+  const isUnreachable = health.unreachable && !hc && !statusObj.is_healthy;
+  const badgeClass = isHealthy ? 'lmcache-badge healthy' : isUnreachable ? 'lmcache-badge unreachable' : 'lmcache-badge unhealthy';
+  const badgeText = isHealthy ? 'HEALTHY' : isUnreachable ? 'UNREACHABLE' : 'UNHEALTHY';
+  parts.push(`<div class="${badgeClass}">${badgeText}</div>`);
+
+  // Health endpoint info
+  if (health.url) {
+    parts.push(`<div class="lmcache-url">Endpoint: <code>${escapeHtml(health.url)}</code></div>`);
+  }
+
+  // HTTP API status details
+  if (Object.keys(statusObj).length) {
+    const rows = [
+      ['Engine', statusObj.engine_type],
+      ['Chunk size', statusObj.chunk_size],
+      ['Hash', statusObj.hash_algorithm],
+      ['Active sessions', statusObj.active_sessions],
+      ['GPU IDs', Array.isArray(statusObj.registered_gpu_ids) ? statusObj.registered_gpu_ids.join(', ') : statusObj.registered_gpu_ids],
+      ['Prefetch jobs', statusObj.active_prefetch_jobs],
+      ['Storage healthy', statusObj.storage_healthy === true ? 'yes' : statusObj.storage_healthy === false ? 'no' : '—'],
+    ].filter(([, v]) => v !== undefined && v !== null && v !== '');
+    if (rows.length) {
+      parts.push('<div class="lmcache-subgrid">' + rows.map(([k, v]) =>
+        `<div class="lmcache-cell"><span class="label">${escapeHtml(k)}</span><span class="value">${escapeHtml(String(v))}</span></div>`
+      ).join('') + '</div>');
+    }
+  }
+
+  // Periodic threads health
+  const pt = health.periodic_threads;
+  if (pt) {
+    const ptBadge = pt.healthy ? 'healthy' : 'unhealthy';
+    parts.push(`<div class="lmcache-threads"><span class="lmcache-badge small ${ptBadge}">${pt.healthy ? 'THREADS OK' : 'THREADS FAILING'}</span> <span class="section-meta">${pt.unhealthy_count ?? 0} unhealthy${pt.unhealthy_threads?.length ? ': ' + pt.unhealthy_threads.map(t => escapeHtml(t.name || t)).join(', ') : ''}</span></div>`);
+  }
+
+  // Prometheus metrics
+  if (Object.keys(prom).length) {
+    const promRows = [
+      ['Retrieve hit rate', prom.retrieve_hit_rate != null ? `${(prom.retrieve_hit_rate * 100).toFixed(1)}%` : null],
+      ['Lookup hit rate', prom.lookup_hit_rate != null ? `${(prom.lookup_hit_rate * 100).toFixed(1)}%` : null],
+      ['Local cache usage', prom.local_cache_usage != null ? format(prom.local_cache_usage) : null],
+      ['Remote cache usage', prom.remote_cache_usage != null ? format(prom.remote_cache_usage) : null],
+      ['Retrieve speed', prom.retrieve_speed != null ? `${format(prom.retrieve_speed)} tok/s` : null],
+      ['Store speed', prom.store_speed != null ? `${format(prom.store_speed)} tok/s` : null],
+      ['Retrieve latency', prom.time_to_retrieve != null ? `${prom.time_to_retrieve.toFixed(1)} ms` : null],
+      ['Store latency', prom.time_to_store != null ? `${prom.time_to_store.toFixed(1)} ms` : null],
+      ['Hot cache count', prom.hot_cache_count],
+      ['Active mem objs', prom.active_memory_objs],
+      ['Pinned mem objs', prom.pinned_memory_objs],
+      ['Evictions', prom.evict_count != null ? format(prom.evict_count) : null],
+      ['Scheduler unfinished', prom.scheduler_unfinished],
+      ['Connector KV caches', prom.connector_kv_caches],
+    ].filter(([, v]) => v !== null && v !== undefined);
+    if (promRows.length) {
+      parts.push('<div class="lmcache-section-label">Prometheus metrics</div>');
+      parts.push('<div class="lmcache-subgrid">' + promRows.map(([k, v]) =>
+        `<div class="lmcache-cell"><span class="label">${escapeHtml(k)}</span><span class="value">${escapeHtml(String(v))}</span></div>`
+      ).join('') + '</div>');
+    }
+  }
+
+  body.innerHTML = parts.join('');
+
+  if (meta) {
+    const bits = [];
+    if (isHealthy) bits.push('healthy');
+    else if (isUnreachable) bits.push('unreachable');
+    else bits.push('unhealthy');
+    if (Object.keys(prom).length) bits.push(`${Object.keys(prom).length} prom metrics`);
+    if (health.url) bits.push('HTTP API');
+    meta.textContent = bits.join(' · ');
+  }
+}
+
 export function renderFullLogs(payload, opts = {}) {
   const container = element('fullLog');
   if (!container) return;

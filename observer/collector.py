@@ -215,6 +215,47 @@ class Collector:
             port_number = self._published_port(record, port_number) or port_number
         return f"http://{self._metrics_host()}:{port_number}/metrics"
 
+    def lmcache_url_for(self, instance: str, record: dict[str, Any] | None = None) -> str:
+        """Resolve the LMCache HTTP API base URL for a vLLM container.
+
+        LMCache MP mode runs an HTTP server (default port 8080) with health
+        and status endpoints. We discover it from:
+        1. VLLM_OBSERVER_LMCACHE_URL_<INSTANCE> env override
+        2. LMCACHE_HTTP_PORT env var on the container
+        3. --lmcache-http-port flag in the command
+        4. If the container has LMCACHE_* env vars (indicating LMCache is
+           enabled), assume default port 8080
+        """
+        configured = os.getenv(
+            f"VLLM_OBSERVER_LMCACHE_URL_{re.sub(r'[^A-Za-z0-9]', '_', instance).upper()}",
+            "",
+        ).strip()
+        if configured:
+            return configured.rstrip("/")
+        record = record or next((item for item in self.docker_instances() if item["name"] == instance), None)
+        if not record or not record.get("running"):
+            return ""
+        env = record.get("env", {})
+        # Check if LMCache is enabled on this container
+        has_lmcache = any(key.startswith("LMCACHE_") for key in env)
+        if not has_lmcache:
+            return ""
+        port = env.get("LMCACHE_HTTP_PORT")
+        if not port:
+            command = record.get("command", "")
+            port = self._flag_value(command, "--lmcache-http-port")
+        if not port:
+            port = "8080"
+        try:
+            port_number = int(port)
+        except (TypeError, ValueError):
+            return ""
+        if not 1 <= port_number <= 65535:
+            return ""
+        if record.get("network_mode") != "host":
+            port_number = self._published_port(record, port_number) or port_number
+        return f"http://{self._metrics_host()}:{port_number}"
+
     def expected_model_for(self, instance: str, record: dict[str, Any] | None = None) -> str:
         record = record or next((item for item in self.docker_instances() if item["name"] == instance), None)
         if not record:

@@ -45,6 +45,36 @@ class CollectorTests(unittest.TestCase):
             "http://127.0.0.1:5802/metrics",
         )
 
+    def test_lmcache_url_returns_empty_without_lmcache_env(self):
+        record = {
+            "name": "model",
+            "running": True,
+            "env": {"VLLM_PORT": "8000"},
+            "command": "vllm serve /model --port 8000",
+            "network_mode": "host",
+        }
+        self.assertEqual(self.collector.lmcache_url_for("model", record), "")
+
+    def test_lmcache_url_uses_default_port_with_lmcache_env(self):
+        record = {
+            "name": "model",
+            "running": True,
+            "env": {"VLLM_PORT": "8000", "LMCACHE_CONFIG": "/etc/lmcache.yaml"},
+            "command": "vllm serve /model --port 8000",
+            "network_mode": "host",
+        }
+        self.assertEqual(self.collector.lmcache_url_for("model", record), "http://127.0.0.1:8080")
+
+    def test_lmcache_url_uses_env_port(self):
+        record = {
+            "name": "model",
+            "running": True,
+            "env": {"LMCACHE_CONFIG": "/etc/lmcache.yaml", "LMCACHE_HTTP_PORT": "8090"},
+            "command": "vllm serve /model --port 8000",
+            "network_mode": "host",
+        }
+        self.assertEqual(self.collector.lmcache_url_for("model", record), "http://127.0.0.1:8090")
+
     @patch("observer.collector.subprocess.run", side_effect=subprocess.TimeoutExpired(["docker", "ps"], 8))
     def test_docker_timeout_returns_failed_result(self, _run):
         result = self.collector._run(["docker", "ps"], timeout=8)

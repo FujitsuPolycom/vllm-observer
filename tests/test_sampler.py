@@ -19,6 +19,9 @@ class FakeCollector:
     def expected_model_for(self, instance, record=None):
         return "glm-5.2"
 
+    def lmcache_url_for(self, instance, record=None):
+        return ""
+
     def instances(self):
         return [{"name": "model", "running": True}]
 
@@ -44,6 +47,92 @@ class SamplerTests(unittest.TestCase):
         point = sampler.sample("model")
         self.assertEqual(point["status"], "identity_mismatch")
         self.assertIn("glm-5.2", point["error"])
+
+    def test_lmcache_health_polled_from_http_api(self):
+        """When lmcache_url_for returns a URL, the sampler polls /healthcheck, /status, /periodic-threads-health."""
+        lmcache_responses = {
+            "http://lmcache:8080/healthcheck": '{"status": "healthy"}',
+            "http://lmcache:8080/status": '{"is_healthy": true, "engine_type": "MPCacheServer", "chunk_size": 256, "hash_algorithm": "blake3", "active_sessions": 2, "registered_gpu_ids": [0, 1], "active_prefetch_jobs": 0, "storage_manager": {"is_healthy": true}}',
+            "http://lmcache:8080/periodic-threads-health": '{"healthy": true, "unhealthy_count": 0, "unhealthy_threads": []}',
+        }
+        metrics_payloads = iter([METRICS % (100, 50, 10), METRICS % (300, 150, 50)])
+
+        class LMPCollector(FakeCollector):
+            def lmcache_url_for(self, instance, record=None):
+                return "http://lmcache:8080"
+
+        def fake_fetch(url):
+            if url in lmcache_responses:
+                return lmcache_responses[url]
+            return next(metrics_payloads)
+
+        def fake_fetch_json(url, timeout=2.0):
+            if url in lmcache_responses:
+                return __import__('json').loads(lmcache_responses[url])
+            return None
+
+        sampler = MetricSampler(LMPCollector(), fetch=fake_fetch, fetch_json=fake_fetch_json)
+        with patch("observer.sampler.time.monotonic", side_effect=[10.0, 11.0]):
+            sampler.sample("model")  # warming
+            point = sampler.sample("model")
+
+        health = point["lmcache_health"]
+        self.assertEqual(health["url"], "http://lmcache:8080")
+        self.assertEqual(health["healthcheck"]["status"], "healthy")
+        self.assertTrue(health["status"]["is_healthy"])
+        self.assertEqual(health["status"]["engine_type"], "MPCacheServer")
+        self.assertTrue(health["status"]["storage_healthy"])
+        self.assertTrue(health["periodic_threads"]["healthy"])
+
+    def test_lmcache_prometheus_metrics_parsed(self):
+        """lmcache:* Prometheus metrics in /metrics output are parsed into lmcache_prometheus."""
+        metrics_with_lmcache = (
+            METRICS % (100, 50, 10) +
+            'lmcache:lmcache_is_healthy 1\n'
+            'lmcache:num_retrieve_requests 42\n'
+            'lmcache:retrieve_hit_rate 0.85\n'
+            'lmcache:local_cache_usage 1073741824\n'
+        )
+        payloads = iter([metrics_with_lmcache, metrics_with_lmcache.replace("42", "52").replace("0.85", "0.90")])
+
+        class NoLMCacheCollector(FakeCollector):
+            def lmcache_url_for(self, instance, record=None):
+                return ""
+
+        sampler = MetricSampler(NoLMCacheCollector(), fetch=lambda _: next(payloads))
+        with patch("observer.sampler.time.monotonic", side_effect=[10.0, 11.0]):
+            sampler.sample("model")
+            point = sampler.sample("model")
+
+        prom = point["lmcache_prometheus"]
+        self.assertEqual(prom["is_healthy"], 1.0)
+        self.assertEqual(prom["retrieve_hit_rate"], 0.9)  # gauge, takes current
+        self.assertEqual(prom["local_cache_usage"], 1073741824.0)
+
+    def test_lmcache_unreachable_returns_empty_health(self):
+        """When LMCache URL is set but unreachable, health dict marks it unreachable."""
+        metrics_payloads = iter([METRICS % (100, 50, 10), METRICS % (300, 150, 50)])
+
+        class UnreachableLMCache(FakeCollector):
+            def lmcache_url_for(self, instance, record=None):
+                return "http://lmcache:8080"
+
+        def fake_fetch(url):
+            if "lmcache" in url:
+                raise OSError("connection refused")
+            return next(metrics_payloads)
+
+        def fake_fetch_json(url, timeout=2.0):
+            return None
+
+        sampler = MetricSampler(UnreachableLMCache(), fetch=fake_fetch, fetch_json=fake_fetch_json)
+        with patch("observer.sampler.time.monotonic", side_effect=[10.0, 11.0]):
+            sampler.sample("model")
+            point = sampler.sample("model")
+
+        health = point["lmcache_health"]
+        self.assertTrue(health.get("unreachable"))
+        self.assertIsNone(health.get("healthcheck"))
 
 
 if __name__ == "__main__":

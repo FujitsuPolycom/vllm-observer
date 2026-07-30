@@ -203,6 +203,32 @@ def normalize(previous: list[Sample], current: list[Sample], elapsed: float) -> 
         "max_num_batched_tokens": max_num_batched,
     })
 
+    # LMCache Prometheus metrics (exposed via vLLM /metrics when integrated)
+    lmcache = _without_none({
+        "is_healthy": gauge("lmcache:lmcache_is_healthy"),
+        "retrieve_requests": counter("lmcache:num_retrieve_requests"),
+        "store_requests": counter("lmcache:num_store_requests"),
+        "lookup_requests": counter("lmcache:num_lookup_requests"),
+        "requested_tokens": counter("lmcache:num_requested_tokens"),
+        "hit_tokens": counter("lmcache:num_hit_tokens"),
+        "stored_tokens": counter("lmcache:num_stored_tokens"),
+        "retrieve_hit_rate": gauge("lmcache:retrieve_hit_rate"),
+        "lookup_hit_rate": gauge("lmcache:lookup_hit_rate"),
+        "local_cache_usage": gauge("lmcache:local_cache_usage"),
+        "remote_cache_usage": gauge("lmcache:remote_cache_usage"),
+        "local_storage_usage": gauge("lmcache:local_storage_usage"),
+        "retrieve_speed": gauge("lmcache:retrieve_speed"),
+        "store_speed": gauge("lmcache:store_speed"),
+        "time_to_retrieve": gauge("lmcache:time_to_retrieve"),
+        "time_to_store": gauge("lmcache:time_to_store"),
+        "evict_count": counter("lmcache:local_cpu_evict_count"),
+        "hot_cache_count": gauge("lmcache:local_cpu_hot_cache_count"),
+        "active_memory_objs": gauge("lmcache:active_memory_objs_count"),
+        "pinned_memory_objs": gauge("lmcache:pinned_memory_objs_count"),
+        "scheduler_unfinished": gauge("lmcache:scheduler_unfinished_requests_count"),
+        "connector_kv_caches": gauge("lmcache:connector_kv_caches_count"),
+    })
+
     return {
         "throughput": _without_none(throughput),
         "cache": _without_none(cache),
@@ -221,6 +247,7 @@ def normalize(previous: list[Sample], current: list[Sample], elapsed: float) -> 
             "speculative_decoding": draft_tokens is not None,
         },
         "runtime_info": runtime_info,
+        "lmcache_prometheus": lmcache,
     }
 
 
