@@ -265,9 +265,8 @@ class MetricSampler:
     def _fetch_json(self, url: str, timeout: float = 2.0) -> dict[str, Any] | None:
         """Fetch JSON from an HTTP endpoint, returning None on any error.
 
-        Uses the injected fetch function (self._fetch) so tests can stub
-        HTTP calls. Falls back to urlopen if self._fetch is the default
-        URL fetcher and the caller wants a shorter timeout.
+        Uses self._fetch (the same injectable fetch used for Prometheus
+        metrics) so tests can stub all HTTP calls with a single function.
         """
         try:
             text = self._fetch(url)
@@ -292,7 +291,7 @@ class MetricSampler:
         else:
             result["healthcheck"] = None
         # GET /status — detailed engine state
-        status = self._fetch_json(f"{base_url}/status")
+        status = self._fetch_json_fn(f"{base_url}/status")
         if status is not None:
             result["status"] = {
                 "is_healthy": status.get("is_healthy"),
@@ -305,11 +304,15 @@ class MetricSampler:
                 "storage_healthy": (status.get("storage_manager") or {}).get("is_healthy"),
             }
         # GET /periodic-threads-health — thread health check
-        threads = self._fetch_json(f"{base_url}/periodic-threads-health")
+        threads = self._fetch_json_fn(f"{base_url}/periodic-threads-health")
         if threads is not None:
             result["periodic_threads"] = threads
+        # GET /version — LMCache version string (unconditional 200)
+        version = self._fetch_json_fn(f"{base_url}/version")
+        if version is not None:
+            result["version"] = version
         # If we got nothing at all, the URL was configured but unreachable
-        if not health and not status and not threads:
+        if not health and not status and not threads and not version:
             result["unreachable"] = True
         return result
 

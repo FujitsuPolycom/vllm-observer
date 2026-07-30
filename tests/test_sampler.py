@@ -54,6 +54,7 @@ class SamplerTests(unittest.TestCase):
             "http://lmcache:8080/healthcheck": '{"status": "healthy"}',
             "http://lmcache:8080/status": '{"is_healthy": true, "engine_type": "MPCacheServer", "chunk_size": 256, "hash_algorithm": "blake3", "active_sessions": 2, "registered_gpu_ids": [0, 1], "active_prefetch_jobs": 0, "storage_manager": {"is_healthy": true}}',
             "http://lmcache:8080/periodic-threads-health": '{"healthy": true, "unhealthy_count": 0, "unhealthy_threads": []}',
+            "http://lmcache:8080/version": '"0.3.1-ca79ea33"',
         }
         metrics_payloads = iter([METRICS % (100, 50, 10), METRICS % (300, 150, 50)])
 
@@ -83,6 +84,7 @@ class SamplerTests(unittest.TestCase):
         self.assertEqual(health["status"]["engine_type"], "MPCacheServer")
         self.assertTrue(health["status"]["storage_healthy"])
         self.assertTrue(health["periodic_threads"]["healthy"])
+        self.assertEqual(health["version"], "0.3.1-ca79ea33")
 
     def test_lmcache_prometheus_metrics_parsed(self):
         """lmcache:* Prometheus metrics in /metrics output are parsed into lmcache_prometheus."""

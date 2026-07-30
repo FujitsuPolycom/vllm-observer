@@ -344,6 +344,11 @@ export function renderLMCache(point) {
     parts.push(`<div class="lmcache-url">Endpoint: <code>${escapeHtml(health.url)}</code></div>`);
   }
 
+  // Version info
+  if (health.version) {
+    parts.push(`<div class="lmcache-url">Version: <code>${escapeHtml(health.version)}</code></div>`);
+  }
+
   // HTTP API status details
   if (Object.keys(statusObj).length) {
     const rows = [
