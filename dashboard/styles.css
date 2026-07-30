@@ -429,9 +429,22 @@ summary small { color: var(--muted); font: 10px ui-monospace, monospace; }
   letter-spacing: 0.04em;
   margin-top: 4px;
 }
+.lmcache-ops-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.lmcache-backend-list { display: flex; gap: 6px; flex-wrap: wrap; }
+.lmcache-backend-chip {
+  font: 11px ui-monospace, monospace;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--text);
+}
+.lmcache-backend-chip code { color: var(--muted); font-size: 10px; }
+.lmcache-bypass { display: flex; align-items: center; gap: 8px; font-size: 12px; }
 body.dark .lmcache-badge.healthy { color: #72d8cb; background: #173b38; }
 body.dark .lmcache-badge.unhealthy { color: #ee7488; background: #2a1a1e; }
 body.dark .lmcache-badge.unreachable { color: #db9a60; background: #2a2218; }
+body.dark .lmcache-backend-chip { border-color: var(--strong-line); background: var(--panel); }
 
 /* ── Full log viewer ── */
 .full-log-section { padding-top: 20px; }

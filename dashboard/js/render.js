@@ -345,8 +345,12 @@ export function renderLMCache(point) {
   }
 
   // Version info
-  if (health.version) {
-    parts.push(`<div class="lmcache-url">Version: <code>${escapeHtml(health.version)}</code></div>`);
+  const versionBits = [];
+  if (health.lmc_version) versionBits.push(`LMCache ${escapeHtml(String(health.lmc_version))}`);
+  if (health.version) versionBits.push(`vLLM ${escapeHtml(String(health.version))}`);
+  if (health.commit_id) versionBits.push(`commit ${escapeHtml(String(health.commit_id).substring(0, 12))}`);
+  if (versionBits.length) {
+    parts.push(`<div class="lmcache-url">${versionBits.join(' · ')}</div>`);
   }
 
   // HTTP API status details
@@ -367,11 +371,58 @@ export function renderLMCache(point) {
     }
   }
 
+  // Operational state badges
+  const opBadges = [];
+  if (health.freeze !== undefined) {
+    const fz = health.freeze ? 'frozen' : 'active';
+    opBadges.push(`<span class="lmcache-badge small ${health.freeze ? 'unhealthy' : 'healthy'}">${fz.toUpperCase()}</span>`);
+  }
+  if (health.hot_cache !== undefined) {
+    const hc2 = health.hot_cache ? 'ON' : 'OFF';
+    opBadges.push(`<span class="lmcache-badge small ${health.hot_cache ? 'healthy' : ''}">HOT CACHE ${hc2}</span>`);
+  }
+  if (opBadges.length) {
+    parts.push(`<div class="lmcache-ops-row">${opBadges.join(' ')}</div>`);
+  }
+
+  // Backends
+  if (health.backends && typeof health.backends === 'object') {
+    const backendEntries = Object.entries(health.backends);
+    if (backendEntries.length) {
+      parts.push('<div class="lmcache-section-label">Storage backends</div>');
+      parts.push('<div class="lmcache-backend-list">' + backendEntries.map(([name, cls]) =>
+        `<span class="lmcache-backend-chip">${escapeHtml(name)}: <code>${escapeHtml(String(cls))}</code></span>`
+      ).join('') + '</div>');
+    }
+  }
+
+  // Bypassed backends
+  if (health.bypass) {
+    const bypassed = health.bypass.bypassed || [];
+    const allBackends = health.bypass.all || [];
+    if (bypassed.length) {
+      parts.push(`<div class="lmcache-bypass"><span class="lmcache-badge small unhealthy">BYPASSED</span> ${escapeHtml(bypassed.join(', '))}</div>`);
+    } else if (allBackends.length) {
+      parts.push('<div class="lmcache-bypass"><span class="lmcache-badge small healthy">NO BYPASS</span> <span class="section-meta">all backends active</span></div>');
+    }
+  }
+
   // Periodic threads health
   const pt = health.periodic_threads;
   if (pt) {
     const ptBadge = pt.healthy ? 'healthy' : 'unhealthy';
     parts.push(`<div class="lmcache-threads"><span class="lmcache-badge small ${ptBadge}">${pt.healthy ? 'THREADS OK' : 'THREADS FAILING'}</span> <span class="section-meta">${pt.unhealthy_count ?? 0} unhealthy${pt.unhealthy_threads?.length ? ': ' + pt.unhealthy_threads.map(t => escapeHtml(t.name || t)).join(', ') : ''}</span></div>`);
+  }
+
+  // Config
+  if (health.config && Object.keys(health.config).length) {
+    const confRows = Object.entries(health.config).filter(([, v]) => v !== null && v !== undefined && v !== '');
+    if (confRows.length) {
+      parts.push('<div class="lmcache-section-label">Configuration</div>');
+      parts.push('<div class="lmcache-subgrid">' + confRows.map(([k, v]) =>
+        `<div class="lmcache-cell"><span class="label">${escapeHtml(k)}</span><span class="value">${escapeHtml(String(v))}</span></div>`
+      ).join('') + '</div>');
+    }
   }
 
   // Prometheus metrics
@@ -408,6 +459,8 @@ export function renderLMCache(point) {
     else if (isUnreachable) bits.push('unreachable');
     else bits.push('unhealthy');
     if (Object.keys(prom).length) bits.push(`${Object.keys(prom).length} prom metrics`);
+    if (health.backends) bits.push(`${Object.keys(health.backends).length} backends`);
+    if (health.lmc_version) bits.push(`v${health.lmc_version}`);
     if (health.url) bits.push('HTTP API');
     meta.textContent = bits.join(' · ');
   }

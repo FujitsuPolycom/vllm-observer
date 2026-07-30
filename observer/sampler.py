@@ -275,23 +275,24 @@ class MetricSampler:
             return None
 
     def _poll_lmcache_health(self, base_url: str) -> dict[str, Any]:
-        """Poll LMCache HTTP API health endpoints.
+        """Poll LMCache HTTP API health and operational endpoints.
 
-        Returns a dict with health status, engine info, and periodic thread
+        Polls both MP-mode and in-process-mode endpoints. Returns a dict with
+        health status, engine info, operational state, and periodic thread
         health. Returns empty dict if no LMCache URL is configured or all
         endpoints are unreachable.
         """
         if not base_url:
             return {}
         result: dict[str, Any] = {"url": base_url}
-        # GET /healthcheck — basic liveness probe
+        # GET /healthcheck — basic liveness probe (MP mode)
         health = self._fetch_json_fn(f"{base_url}/healthcheck")
         if health is not None:
             result["healthcheck"] = health
         else:
             result["healthcheck"] = None
-        # GET /status — detailed engine state
-        status = self._fetch_json_fn(f"{base_url}/status")
+        # GET /status — detailed engine state (MP mode)
+        status = self._fetch_json(f"{base_url}/status")
         if status is not None:
             result["status"] = {
                 "is_healthy": status.get("is_healthy"),
@@ -303,16 +304,65 @@ class MetricSampler:
                 "active_prefetch_jobs": status.get("active_prefetch_jobs"),
                 "storage_healthy": (status.get("storage_manager") or {}).get("is_healthy"),
             }
-        # GET /periodic-threads-health — thread health check
-        threads = self._fetch_json_fn(f"{base_url}/periodic-threads-health")
+        # GET /periodic-threads-health — thread health check (both modes)
+        threads = self._fetch_json(f"{base_url}/periodic-threads-health")
         if threads is not None:
             result["periodic_threads"] = threads
-        # GET /version — LMCache version string (unconditional 200)
-        version = self._fetch_json_fn(f"{base_url}/version")
+        # GET /backends — list active storage backends (both modes)
+        backends = self._fetch_json(f"{base_url}/backends")
+        if backends is not None:
+            result["backends"] = backends
+        # GET /freeze/status — freeze mode state (both modes)
+        freeze = self._fetch_json(f"{base_url}/freeze/status")
+        if freeze is not None:
+            result["freeze"] = freeze.get("freeze")
+        # GET /hot_cache/status — hot cache state (both modes)
+        hot_cache = self._fetch_json(f"{base_url}/hot_cache/status")
+        if hot_cache is not None:
+            result["hot_cache"] = hot_cache.get("hot_cache")
+        # GET /bypass/list — bypassed backends (both modes)
+        bypass = self._fetch_json(f"{base_url}/bypass/list")
+        if bypass is not None:
+            result["bypass"] = {
+                "bypassed": bypass.get("bypassed_backends", []),
+                "all": bypass.get("all_backends", []),
+            }
+        # GET /version — vLLM version string (dict with vllm_version key, or raw string)
+        version = self._fetch_json(f"{base_url}/version")
         if version is not None:
-            result["version"] = version
+            if isinstance(version, dict):
+                result["version"] = version.get("vllm_version") or version.get("version")
+            else:
+                result["version"] = str(version)
+        # GET /lmc_version — LMCache version string (raw string)
+        lmc_version = self._fetch_json(f"{base_url}/lmc_version")
+        if lmc_version is not None:
+            result["lmc_version"] = lmc_version if isinstance(lmc_version, str) else str(lmc_version)
+        # GET /commit_id — LMCache commit ID (raw string)
+        commit_id = self._fetch_json(f"{base_url}/commit_id")
+        if commit_id is not None:
+            result["commit_id"] = commit_id if isinstance(commit_id, str) else str(commit_id)
+        # GET /inference_info — vLLM config + LMCache details
+        inference_info = self._fetch_json(f"{base_url}/inference_info")
+        if inference_info is not None:
+            result["inference_info"] = inference_info
+        # GET /conf — LMCache configuration
+        conf = self._fetch_json(f"{base_url}/conf")
+        if conf is not None:
+            # Only keep a curated subset to avoid dumping the entire config
+            result["config"] = {
+                k: v for k, v in conf.items()
+                if k in (
+                    "chunk_size", "save_decode_cache", "enable_async_loading",
+                    "local_cpu", "max_local_cpu_size", "remote_url",
+                    "remote_serdes", "pipelined_backends", "lookup_url",
+                    "minimum_lookup_size", "max_local_disk_size",
+                    "lmcache_instance_id", "enable_blending",
+                    "blend_backend", "blend_scheduler",
+                )
+            }
         # If we got nothing at all, the URL was configured but unreachable
-        if not health and not status and not threads and not version:
+        if not health and not status and not threads and not backends and not freeze and not hot_cache and not bypass:
             result["unreachable"] = True
         return result
 
