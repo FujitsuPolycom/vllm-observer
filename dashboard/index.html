@@ -37,6 +37,17 @@
       </dl>
     </section>
 
+    <section class="section model-details-section" aria-labelledby="modelDetailsTitle">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Key configuration at a glance</p>
+          <h2 id="modelDetailsTitle">Model details</h2>
+        </div>
+        <span id="modelDetailsMeta" class="section-meta">Loading configuration...</span>
+      </div>
+      <div id="modelDetails" class="model-details-grid"></div>
+    </section>
+
     <section class="section" aria-labelledby="performanceTitle">
       <div class="section-heading">
         <div>
@@ -234,6 +245,26 @@
           <div class="log-actions"><span id="logFocus" class="section-meta">Live tail</span><button id="exportReport" class="button secondary" type="button" disabled>Export report</button><span id="logMeta" class="section-meta"></span></div>
         </div>
         <div id="logs" class="logs"></div>
+      </div>
+    </section>
+
+    <section class="section full-log-section" aria-labelledby="fullLogTitle">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Complete unfiltered log tail</p>
+          <h2 id="fullLogTitle">Full log viewer</h2>
+          <p class="section-hint">All log lines in a single scrollable pane. Use the filter to search. Toggle Follow to auto-scroll to new lines.</p>
+        </div>
+        <div class="full-log-controls">
+          <input id="fullLogFilter" type="text" class="full-log-filter" placeholder="Filter lines..." aria-label="Filter log lines">
+          <button id="fullLogFollow" class="button secondary" type="button" aria-pressed="true">Follow: On</button>
+          <button id="fullLogPause" class="button secondary" type="button">Pause</button>
+          <button id="fullLogExpand" class="button secondary" type="button">Expand</button>
+          <span id="fullLogMeta" class="section-meta">0 lines</span>
+        </div>
+      </div>
+      <div id="fullLogContainer" class="full-log-container">
+        <div id="fullLog" class="full-log"></div>
       </div>
     </section>
   </main>

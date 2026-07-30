@@ -56,6 +56,8 @@ export function renderSnapshot(point) {
     diagnostic.innerHTML = `<strong>${escapeHtml(statusTitle(point.status))}.</strong> ${escapeHtml(point.error || 'No telemetry is available yet.')}`;
   }
 
+  renderModelDetails(point);
+
   const schedulerPrefill = point.fresh_prefill_source === 'scheduler';
   const cards = metricDefinitions.map(([path, label, unit, note]) => {
     if (path === 'throughput.fresh_prefill_tps' && schedulerPrefill) {
@@ -233,6 +235,115 @@ export function setConnection(status, text) {
   const connection = element('connection');
   connection.className = `connection ${status}`;
   connection.lastChild.textContent = text;
+}
+
+export function renderModelDetails(point, config) {
+  const grid = element('modelDetails');
+  if (!grid) return;
+  const env = config?.env || {};
+  const command = String(config?.command || '');
+  const runtime = point?.runtime_info || {};
+  const source = point?.source || {};
+  const models = source.observed_models || source.expected_model || [];
+
+  const envVal = (keys, flags = []) => {
+    const fromEnv = keys.map(k => env[k]).find(v => v !== undefined && v !== '');
+    if (fromEnv !== undefined) return fromEnv;
+    for (const flag of flags) {
+      const match = command.match(new RegExp(`(?:^|\\s)${flag}(?:=|\\s+)([^\\s]+)`));
+      if (match) return match[1].replace(/^['"]|['"]$/g, '');
+    }
+    return undefined;
+  };
+
+  const fmtNum = v => {
+    if (v === undefined || v === null) return null;
+    const n = Number(v);
+    if (!Number.isFinite(n)) return null;
+    return n >= 1000000 ? `${(n / 1000000).toFixed(2)}M` :
+           n >= 1000 ? `${(n / 1000).toFixed(1)}K` :
+           String(n);
+  };
+
+  const card = (label, value, opts = {}) => {
+    const display = value === undefined || value === null || value === '' ? '—' : String(value);
+    const available = value !== undefined && value !== null && value !== '';
+    return `<article class="model-detail-card ${opts.prominent ? 'prominent' : ''} ${available ? '' : 'unavailable'}">
+      <span class="label">${escapeHtml(label)}</span>
+      <span class="value ${opts.big ? 'big' : ''}">${escapeHtml(display)}</span>
+    </article>`;
+  };
+
+  const modelName = envVal(['SERVED_MODEL_NAME', 'MODEL', 'MODEL_NAME'], ['--served-model-name', '--model']) || (Array.isArray(models) && models.length ? models.join(', ') : '') || config?.image || '';
+  const tp = envVal(['TP', 'TENSOR_PARALLEL_SIZE'], ['--tensor-parallel-size']);
+  const dcp = envVal(['DCP', 'DATA_PARALLEL_SIZE'], ['--data-parallel-size']);
+  const maxModelLen = envVal(['MAX_MODEL_LEN', 'MAX_SEQ_LEN', 'MAX_CONTEXT_LEN'], ['--max-model-len']) || fmtNum(runtime.max_model_len);
+  const maxNumSeq = envVal(['MAX_NUM_SEQS'], ['--max-num-seqs']) || fmtNum(runtime.max_num_seq);
+  const maxBatched = envVal(['MAX_NUM_BATCHED_TOKENS'], ['--max-num-batched-tokens']) || fmtNum(runtime.max_num_batched_tokens);
+  const gpuMem = envVal(['GPU_MEMORY_UTILIZATION'], ['--gpu-memory-utilization']);
+  const quant = envVal(['QUANTIZATION', 'DTYPE'], ['--quantization', '--dtype']);
+  const gpus = envVal(['GPUS', 'GPU_COUNT', 'CUDA_VISIBLE_DEVICES']);
+  const kvBlocks = fmtNum(runtime.num_gpu_blocks);
+  const kvFree = fmtNum(runtime.num_free_blocks);
+  const kvUsed = kvBlocks && kvFree ? `${Number(kvBlocks) - Number(kvFree)} / ${kvBlocks}` : (kvBlocks || '—');
+
+  grid.innerHTML = [
+    card('Model', modelName, { prominent: true, big: true }),
+    card('Quantization', quant),
+    card('Tensor Parallel', tp),
+    card('Data Parallel', dcp),
+    card('GPUs', gpus),
+    card('GPU Memory Util', gpuMem),
+    card('Max Model Len', maxModelLen, { prominent: true }),
+    card('Max Num Seqs', maxNumSeq, { prominent: true }),
+    card('Max Batched Tokens', maxBatched, { prominent: true }),
+    card('KV Cache Blocks', kvUsed),
+    card('Image', config?.image || '—'),
+    card('Status', config?.status || '—'),
+  ].join('');
+
+  const meta = element('modelDetailsMeta');
+  if (meta) {
+    const parts = [];
+    if (Object.keys(env).length) parts.push(`${Object.keys(env).length} env flags`);
+    if (point?.status === 'ok') parts.push('Prometheus live');
+    if (!parts.length) parts.push('Config from Docker inspect');
+    meta.textContent = parts.join(' · ');
+  }
+}
+
+export function renderFullLogs(payload, opts = {}) {
+  const container = element('fullLog');
+  if (!container) return;
+  const lines = payload.lines || [];
+  const filterText = opts.filter || '';
+  const focusLine = payload.focus_line;
+
+  // Preserve scroll: if user is near bottom and follow is on, we keep them at bottom
+  const wasNearBottom = container.scrollHeight - container.clientHeight - container.scrollTop <= 40;
+  const filterLower = filterText.toLowerCase().trim();
+
+  const html = lines.map(line => {
+    const isMatch = filterLower && line.toLowerCase().includes(filterLower);
+    const isFocus = focusLine && line === focusLine;
+    return `<div${isMatch ? ' class="match"' : ''}${isFocus ? ' class="log-focus"' : ''}>${escapeHtml(line)}</div>`;
+  }).join('');
+  container.innerHTML = html || '<div class="empty">No log lines available.</div>';
+
+  const meta = element('fullLogMeta');
+  if (meta) {
+    const shown = filterLower ? lines.filter(l => l.toLowerCase().includes(filterLower)).length : lines.length;
+    meta.textContent = filterLower ? `${shown} / ${lines.length} lines` : `${lines.length} lines`;
+  }
+
+  if (opts.follow && wasNearBottom) {
+    requestAnimationFrame(() => { container.scrollTop = container.scrollHeight; });
+  }
+
+  if (focusLine && !opts.follow) {
+    const focused = [...container.querySelectorAll('div')].find(d => d.textContent === focusLine);
+    if (focused) focused.scrollIntoView({ block: 'center' });
+  }
 }
 
 function get(object, path) {

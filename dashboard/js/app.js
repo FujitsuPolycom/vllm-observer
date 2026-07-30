@@ -3,8 +3,10 @@ import { TimeSeriesChart } from './chart.js';
 import { formatTime, localTimezone, setTimezone } from './time.js';
 import {
   renderConfiguration,
+  renderFullLogs,
   renderInstances,
   renderLogs,
+  renderModelDetails,
   renderSnapshot,
   setConnection,
 } from './render.js';
@@ -22,6 +24,10 @@ const state = {
   syncZoom: false,
   bridgeGaps: true,
   chartOrder: loadChartOrder(),
+  fullLogFollow: true,
+  fullLogPaused: false,
+  fullLogFilter: '',
+  fullLogLines: [],
 };
 
 function loadColorMode() {
@@ -243,10 +249,14 @@ async function selectWorkload(name) {
       api.logs(name),
     ]);
     state.history = history.points || [];
+    window.__observerConfig = config;
     renderConfiguration(config);
     renderLogs(logs);
+    renderFullLogs(logs, { follow: state.fullLogFollow, filter: state.fullLogFilter });
+    state.fullLogLines = logs.lines || [];
     const point = state.history.at(-1) || await api.snapshot(name);
     renderSnapshot(point);
+    renderModelDetails(point, config);
     drawCharts();
   } catch (error) {
     setConnection('error', 'Workload read failed');
@@ -260,6 +270,7 @@ async function loadSnapshot() {
   try {
     const point = await api.snapshot(state.selected);
     renderSnapshot(point);
+    renderModelDetails(point, window.__observerConfig);
     if (point.status === 'ok' && !state.history.some(item => item.timestamp === point.timestamp)) {
       state.history.push(point);
       state.history = state.history.slice(-3600);
@@ -280,7 +291,10 @@ async function loadSnapshot() {
 async function loadLogs() {
   if (state.paused || !state.selected || document.hidden || state.focusTimestamp) return;
   try {
-    renderLogs(await api.logs(state.selected));
+    const logs = await api.logs(state.selected);
+    renderLogs(logs);
+    renderFullLogs(logs, { follow: state.fullLogFollow, filter: state.fullLogFilter });
+    state.fullLogLines = logs.lines || [];
   } catch (error) {
     element('logMeta').textContent = error.message;
   }
@@ -325,6 +339,7 @@ async function selectTimelinePoint(timestamp) {
   try {
     const payload = await api.logsAt(state.selected, timestamp);
     renderLogs(payload);
+    renderFullLogs(payload, { follow: false });
     element('logFocus').textContent = 'Point ' + formatTime(timestamp, true) +
       ' · archive ±' + payload.archive_delta_seconds + 's';
     element('logs').classList.add('is-focused');
@@ -341,7 +356,7 @@ function togglePaused() {
   element('timelinePause').textContent = state.paused ? 'Resume updates' : 'Pause updates';
   document.querySelectorAll('.chart-pause').forEach(button => { button.textContent = state.paused ? 'Resume' : 'Pause'; });
   setConnection(state.paused ? 'pending' : 'ok', state.paused ? 'Paused' : 'Live');
-  if (!state.paused) loadSnapshot();
+  if (!state.paused) { loadSnapshot(); loadLogs(); loadFullLog(); }
 }
 element('pauseButton').addEventListener('click', togglePaused);
 element('timelinePause').addEventListener('click', togglePaused);
@@ -406,6 +421,7 @@ element('clearPin').addEventListener('click', () => {
   element('logs').classList.remove('is-focused');
   drawCharts();
   loadLogs();
+  loadFullLog();
 });
 element('pinNoticeLogs').addEventListener('click', () => {
   element('logs').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -436,6 +452,48 @@ function setupZoomControls() {
   });
 }
 
+element('fullLogFollow').addEventListener('click', event => {
+  state.fullLogFollow = !state.fullLogFollow;
+  event.currentTarget.textContent = state.fullLogFollow ? 'Follow: On' : 'Follow: Off';
+  event.currentTarget.setAttribute('aria-pressed', String(state.fullLogFollow));
+  if (state.fullLogFollow) {
+    const c = element('fullLog');
+    if (c) c.scrollTop = c.scrollHeight;
+  }
+});
+element('fullLogPause').addEventListener('click', event => {
+  state.fullLogPaused = !state.fullLogPaused;
+  event.currentTarget.textContent = state.fullLogPaused ? 'Resume' : 'Pause';
+  if (!state.fullLogPaused) loadFullLog();
+});
+element('fullLogFilter').addEventListener('input', event => {
+  state.fullLogFilter = event.target.value;
+  renderFullLogs({ lines: state.fullLogLines }, { follow: false, filter: state.fullLogFilter });
+});
+element('fullLogExpand').addEventListener('click', event => {
+  const container = element('fullLogContainer');
+  const expanded = container.classList.toggle('is-expanded');
+  document.body.classList.toggle('fulllog-expanded', expanded);
+  event.currentTarget.textContent = expanded ? 'Close' : 'Expand';
+  event.currentTarget.setAttribute('aria-expanded', String(expanded));
+});
+document.addEventListener('keydown', event => {
+  if (event.key !== 'Escape') return;
+  const expanded = document.querySelector('.full-log-container.is-expanded');
+  if (expanded) element('fullLogExpand').click();
+});
+
+async function loadFullLog() {
+  if (state.paused || state.fullLogPaused || !state.selected || document.hidden || state.focusTimestamp) return;
+  try {
+    const logs = await api.logs(state.selected);
+    renderFullLogs(logs, { follow: state.fullLogFollow, filter: state.fullLogFilter });
+    state.fullLogLines = logs.lines || [];
+  } catch (error) {
+    element('fullLogMeta').textContent = error.message;
+  }
+}
+
 setupChartInteractions();
 setupSeriesToggles();
 setupZoomControls();
@@ -445,4 +503,5 @@ await loadInstances();
 await loadSnapshot();
 setInterval(loadSnapshot, 1000);
 setInterval(loadLogs, 5000);
+setInterval(loadFullLog, 5000);
 setInterval(loadInstances, 15000);

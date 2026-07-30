@@ -10,7 +10,7 @@ Use this document to start a new LLM on the repository without reconstructing th
 - `master` and `origin/master` are current together at the latest commit.
 - Current commit: `5690274 fix: keep chart tooltip clear of cursor`
 - AI01 deployment: `/opt/vllm-observer`, `http://192.168.0.213:8088/`
-- AI01 is a LAN-only host at `192.168.0.213`; Tailscale is not installed on AI01 itself. A laptop Tailscale subnet route can capture the `192.168.0.0/24` route and make this LAN URL unreachable.
+- AI01 is a LAN-only host at `192.168.0.213`; Tailscale is not installed on AI01 itself. Tailscale subnet routing is enabled on pvec01 (192.168.0.11) and pvec03 (192.168.0.13), advertising `192.168.0.0/24`. Remote Tailscale devices with `--accept-routes` can reach `http://192.168.0.213:8088/` directly.
 - The Compose listener is explicitly `0.0.0.0:8088`; Docker publishes port `8088` on all host interfaces.
 - Runtime requires Python 3.11+ and has no third-party Python dependencies.
 - Prometheus is the only performance source. Logger lines are displayed separately and are not throughput fallbacks.

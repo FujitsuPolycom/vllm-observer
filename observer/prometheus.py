@@ -168,6 +168,41 @@ def normalize(previous: list[Sample], current: list[Sample], elapsed: float) -> 
         "completed_per_second": counter("vllm:request_success_total"),
     }
 
+    # Static-ish config gauges that vLLM exposes alongside the counters.
+    model_config = {
+        "max_num_seqs": gauge("vllm:max_num_seqs", "vllm_max_num_seqs"),
+        "max_num_batched_tokens": gauge("vllm:max_num_batched_tokens", "vllm_max_num_batched_tokens"),
+        "gpu_memory_utilization": gauge("vllm:gpu_memory_utilization", "vllm_gpu_memory_utilization"),
+        "kv_cache_num_blocks": gauge("vllm:kv_cache_num_blocks", "vllm_kv_cache_num_blocks"),
+        "kv_cache_block_size": gauge("vllm:kv_cache_block_size", "vllm_kv_cache_block_size"),
+        "max_model_len": gauge("vllm:max_model_len", "vllm_max_model_len"),
+        "tensor_parallel_size": gauge("vllm:tensor_parallel_size", "vllm_tensor_parallel_size"),
+        "data_parallel_size": gauge("vllm:data_parallel_size", "vllm_data_parallel_size"),
+        "pipeline_parallel_size": gauge("vllm:pipeline_parallel_size", "vllm_pipeline_parallel_size"),
+        "enable_prefix_caching": gauge("vllm:enable_prefix_caching", "vllm_enable_prefix_caching"),
+        "enable_chunked_prefill": gauge("vllm:enable_chunked_prefill", "vllm_enable_chunked_prefill"),
+        "speculative_num_layers": gauge("vllm:speculative_num_layers", "vllm_speculative_num_layers"),
+        "speculative_num_draft_tokens": gauge("vllm:speculative_num_draft_tokens", "vllm_speculative_num_draft_tokens"),
+        "num_gpu_blocks": gauge("vllm:num_gpu_blocks", "vllm_num_gpu_blocks"),
+    }
+
+    # KV cache block gauges (useful for the model details panel)
+    num_gpu_blocks = gauge("vllm:num_gpu_blocks", "vllm_num_gpu_blocks")
+    num_free_blocks = gauge("vllm:num_free_blocks", "vllm_num_free_blocks")
+    max_num_running = gauge("vllm:num_requests_running", "vllm_num_requests_running")
+    max_num_waiting = gauge("vllm:num_requests_waiting", "vllm_num_requests_waiting")
+    max_model_len = gauge("vllm:max_model_len", "vllm_max_model_len")
+    max_num_seq = gauge("vllm:max_num_seq", "vllm_max_num_seq")
+    max_num_batched = gauge("vllm:max_num_batched_tokens", "vllm_max_num_batched_tokens")
+
+    runtime_info = _without_none({
+        "num_gpu_blocks": num_gpu_blocks,
+        "num_free_blocks": num_free_blocks,
+        "max_model_len": max_model_len,
+        "max_num_seq": max_num_seq,
+        "max_num_batched_tokens": max_num_batched,
+    })
+
     return {
         "throughput": _without_none(throughput),
         "cache": _without_none(cache),
@@ -185,6 +220,7 @@ def normalize(previous: list[Sample], current: list[Sample], elapsed: float) -> 
             "external_cache": external_queries is not None or external_cache is not None,
             "speculative_decoding": draft_tokens is not None,
         },
+        "runtime_info": runtime_info,
     }
 
 
