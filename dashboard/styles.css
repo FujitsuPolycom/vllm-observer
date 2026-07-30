@@ -183,35 +183,62 @@ h3 { margin: 0; font-size: 14px; }
 .percentile-row i { display: block; height: 9px; border-radius: 5px; background: linear-gradient(90deg, var(--accent) var(--size), var(--line) var(--size)); }
 .percentile-row b { color: var(--text); font-weight: 700; }
 .request-small-grid { padding: 12px; border: 1px solid var(--line); border-radius: 5px; background: var(--panel); }
-/* Collapsible sections (model details, request analytics) */
+/* Collapsible sections (model details, request analytics, lmcache) */
 .collapsible-section > summary.section-heading {
   min-height: 0;
-  padding: 0 0 10px;
+  padding: 10px 14px;
+  margin-bottom: 0;
   list-style: none;
   cursor: pointer;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  align-items: center;
+  transition: border-color 0.15s, background 0.15s;
 }
 .collapsible-section > summary.section-heading::-webkit-details-marker { display: none; }
 .collapsible-section > summary.section-heading::after {
-  content: "Expand";
-  color: var(--muted);
-  font: 10px ui-monospace, monospace;
-  white-space: nowrap;
+  content: "";
+  display: none;
 }
-.collapsible-section[open] > summary.section-heading::after { content: "Collapse"; }
+.collapsible-section[open] > summary.section-heading {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.collapsible-section > summary.section-heading:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--panel));
+}
 .collapsible-section > summary.section-heading:hover .eyebrow,
 .collapsible-section > summary.section-heading:hover h2 { color: var(--accent-dark); }
 .collapsible-section > summary.section-heading::before {
-  content: "\25B6";
-  display: inline-block;
-  margin-right: 8px;
-  font-size: 10px;
+  content: "\25B8";
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  font-size: 13px;
   color: var(--muted);
-  transition: transform 0.15s ease;
-  align-self: center;
+  transition: transform 0.15s ease, color 0.15s;
 }
 .collapsible-section[open] > summary.section-heading::before {
   transform: rotate(90deg);
+  color: var(--accent);
 }
+.collapsible-section > summary.section-heading > div:first-child { flex: 1; }
+.collapsible-section .section-meta { white-space: nowrap; }
+.collapsible-section > div:not(.section-heading) {
+  border: 1px solid var(--line);
+  border-top: 0;
+  border-radius: 0 0 8px 8px;
+  padding: 14px;
+  background: var(--panel);
+}
+.collapsible-section + .collapsible-section,
+.collapsible-section + .section,
+.section + .collapsible-section { margin-top: 10px; }
 
 .chart-section { padding-top: 28px; }
 .chart-controls { display: grid; grid-template-columns: minmax(220px, 1fr) auto 120px auto auto auto; align-items: center; gap: 8px 12px; }
