@@ -56,8 +56,6 @@ export function renderSnapshot(point) {
     diagnostic.innerHTML = `<strong>${escapeHtml(statusTitle(point.status))}.</strong> ${escapeHtml(point.error || 'No telemetry is available yet.')}`;
   }
 
-  renderModelDetails(point);
-
   const schedulerPrefill = point.fresh_prefill_source === 'scheduler';
   const cards = metricDefinitions.map(([path, label, unit, note]) => {
     if (path === 'throughput.fresh_prefill_tps' && schedulerPrefill) {
@@ -266,11 +264,13 @@ export function renderModelDetails(point, config) {
   };
 
   const card = (label, value, opts = {}) => {
-    const display = value === undefined || value === null || value === '' ? '—' : String(value);
     const available = value !== undefined && value !== null && value !== '';
+    const display = available ? String(value) : '—';
+    const truncClass = (available && display.length > 40) ? ' truncated' : '';
+    const titleAttr = truncClass ? ` title="${escapeHtml(display)}"` : '';
     return `<article class="model-detail-card ${opts.prominent ? 'prominent' : ''} ${available ? '' : 'unavailable'}">
       <span class="label">${escapeHtml(label)}</span>
-      <span class="value ${opts.big ? 'big' : ''}">${escapeHtml(display)}</span>
+      <span class="value ${opts.big ? 'big' : ''}${truncClass}"${titleAttr}>${escapeHtml(display)}</span>
     </article>`;
   };
 

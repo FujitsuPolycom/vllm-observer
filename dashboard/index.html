@@ -37,17 +37,6 @@
       </dl>
     </section>
 
-    <section class="section model-details-section" aria-labelledby="modelDetailsTitle">
-      <div class="section-heading">
-        <div>
-          <p class="eyebrow">Key configuration at a glance</p>
-          <h2 id="modelDetailsTitle">Model details</h2>
-        </div>
-        <span id="modelDetailsMeta" class="section-meta">Loading configuration...</span>
-      </div>
-      <div id="modelDetails" class="model-details-grid"></div>
-    </section>
-
     <section class="section" aria-labelledby="performanceTitle">
       <div class="section-heading">
         <div>
@@ -59,8 +48,21 @@
       <div id="metricCards" class="metric-grid"></div>
     </section>
 
+    <section class="section model-details-section" aria-labelledby="modelDetailsTitle">
+      <details class="collapsible-section">
+        <summary class="section-heading">
+          <div>
+            <p class="eyebrow">Key configuration at a glance</p>
+            <h2 id="modelDetailsTitle">Model details</h2>
+          </div>
+          <span id="modelDetailsMeta" class="section-meta">Loading configuration...</span>
+        </summary>
+        <div id="modelDetails" class="model-details-grid"></div>
+      </details>
+    </section>
+
     <section id="requestAnalytics" class="section request-section" aria-labelledby="requestAnalyticsTitle">
-      <details class="analytics-disclosure" open>
+      <details class="collapsible-section">
         <summary class="section-heading">
           <div>
             <p class="eyebrow">Request histograms and counters</p>
