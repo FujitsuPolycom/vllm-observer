@@ -9,6 +9,9 @@ import socket
 import subprocess
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
+
+from .config import env_bool, env_int
 
 ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 SECRET_RE = re.compile(r"(?i)(bearer\s+|(?:api[_-]?key|token|password|secret)\s*[=:]\s*)\S+")
@@ -20,10 +23,24 @@ def clean(line: str) -> str:
     return SECRET_RE.sub(r"\1[redacted]", ANSI_RE.sub("", line).replace("\r", ""))
 
 
+def redact_url(value: str) -> str:
+    """Remove userinfo and query/fragment secrets from an operational URL."""
+    if not value:
+        return value
+    try:
+        parsed = urlsplit(value)
+        host = parsed.hostname or ""
+        if parsed.port:
+            host = f"{host}:{parsed.port}"
+        return urlunsplit((parsed.scheme, host, parsed.path, "", ""))
+    except (TypeError, ValueError):
+        return "[redacted-url]"
+
+
 class Collector:
     def __init__(self) -> None:
-        self.tail = min(1000, max(20, int(os.getenv("VLLM_OBSERVER_LOG_TAIL", "320"))))
-        self.docker_enabled = os.getenv("VLLM_OBSERVER_DOCKER", "1").lower() not in {"0", "false", "no"}
+        self.tail = env_int("VLLM_OBSERVER_LOG_TAIL", 320, 20, 1000)
+        self.docker_enabled = env_bool("VLLM_OBSERVER_DOCKER", True)
         self.allowlist = {x.strip() for x in os.getenv("VLLM_OBSERVER_CONTAINER_ALLOWLIST", "").split(",") if x.strip()}
         configured_terms = [x.strip().lower() for x in os.getenv("VLLM_OBSERVER_DISCOVERY_TERMS", "").split(",") if x.strip()]
         self.discovery_terms = tuple(configured_terms) or VLLM_TERMS
@@ -77,7 +94,7 @@ class Collector:
             if not key.startswith(prefixes):
                 continue
             upper = key.upper()
-            if any(word in upper for word in ("PASSWORD", "SECRET", "API_KEY")) or upper in {"HF_TOKEN", "HUGGING_FACE_HUB_TOKEN", "ACCESS_TOKEN", "AUTH_TOKEN"}:
+            if any(word in upper for word in ("PASSWORD", "SECRET", "API_KEY", "TOKEN")):
                 value = "[redacted]"
             selected[key] = value
         return dict(sorted(selected.items()))

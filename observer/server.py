@@ -6,11 +6,14 @@ import json
 import mimetypes
 import os
 import re
+import base64
+import hmac
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
 from .collector import Collector
+from .config import ServerConfig, build_info
 from .parser import classify, metrics
 from .sampler import MetricSampler
 
@@ -26,11 +29,45 @@ class Handler(BaseHTTPRequestHandler):
     server_version = "vllm-observer/0.2"
 
     def _send(self, payload: object, status: int = 200) -> None:
+        if isinstance(payload, dict) and "error" in payload and "code" not in payload:
+            payload = {**payload, "code": "not_found" if status == 404 else "invalid_request" if status == 400 else "source_unavailable" if status == 503 else "error"}
         body = json.dumps(payload, separators=(",", ":")).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self._cors_header()
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _cors_header(self) -> None:
+        origin = self.headers.get("Origin", "")
+        allowed = ServerConfig.from_env().cors_origins
+        if origin and (origin in allowed or "*" in allowed):
+            self.send_header("Access-Control-Allow-Origin", origin if origin != "null" else "null")
+            self.send_header("Vary", "Origin")
+
+    def _authorized(self, path: str) -> bool:
+        if path == "/api/health":
+            return True
+        config = ServerConfig.from_env()
+        if not config.auth_token and not config.auth_username:
+            return True
+        supplied = self.headers.get("Authorization", "")
+        if config.auth_token and supplied.startswith("Bearer "):
+            return hmac.compare_digest(supplied[7:], config.auth_token)
+        if config.auth_username and supplied.startswith("Basic "):
+            expected = base64.b64encode(f"{config.auth_username}:{config.auth_password}".encode()).decode()
+            return hmac.compare_digest(supplied[6:], expected)
+        return False
+
+    def _authentication_required(self) -> None:
+        body = b'{"error":"authentication required","code":"unauthorized"}'
+        self.send_response(401)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        if ServerConfig.from_env().auth_username:
+            self.send_header("WWW-Authenticate", 'Basic realm="vLLM Observer"')
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -56,14 +93,18 @@ class Handler(BaseHTTPRequestHandler):
         path = parsed.path.rstrip("/") or "/"
         query = parse_qs(parsed.query)
         try:
+            if not self._authorized(path):
+                return self._authentication_required()
             if path == "/":
                 return self._file("index.html")
             if path == "/api/v1":
                 return self._send({
                     "name": "vLLM Observer API",
                     "version": "v1",
+                    "build": build_info(),
                     "endpoints": [
                         "/api/v1/status",
+                        "/api/v1/schema",
                         "/api/v1/instances",
                         "/api/v1/instances/{name}/snapshot",
                         "/api/v1/instances/{name}/history?limit=900",
@@ -73,6 +114,8 @@ class Handler(BaseHTTPRequestHandler):
                         "/api/v1/instances/{name}/report?at=<timestamp>",
                     ],
                 })
+            if path == "/api/v1/schema":
+                return self._send(API_SCHEMA)
             if path in {"/api/health", "/api/v1/status"}:
                 return self._send({"ok": True, **sampler.status()})
             if path in {"/api/instances", "/api/v1/instances"}:
@@ -179,9 +222,40 @@ def _query_timestamp(query: dict[str, list[str]]) -> int | None:
         return None
 
 
+API_SCHEMA = {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "vLLM Observer API v1",
+    "type": "object",
+    "contracts": {
+        "status": {
+            "type": "object",
+            "required": ["ok", "service", "api_version", "build", "collection", "instances"],
+            "properties": {
+                "ok": {"type": "boolean"},
+                "service": {"const": "vllm-observer"},
+                "api_version": {"const": "v1"},
+                "build": {"type": "object"},
+                "collection": {"type": "object"},
+                "instances": {"type": "object"},
+            },
+        },
+        "instances": {
+            "type": "object",
+            "required": ["instances"],
+            "properties": {"instances": {"type": "array"}},
+        },
+        "error": {
+            "type": "object",
+            "required": ["error"],
+            "properties": {"error": {"type": "string"}, "code": {"type": "string"}},
+        },
+    },
+}
+
+
 def main() -> None:
-    host = os.getenv("VLLM_OBSERVER_HOST", "0.0.0.0")
-    port = int(os.getenv("VLLM_OBSERVER_PORT", "8088"))
+    config = ServerConfig.from_env()
+    host, port = config.host, config.port
     sampler.start()
     server = ThreadingHTTPServer((host, port), Handler)
     print(f"vLLM Observer listening on http://{host}:{port}", flush=True)

@@ -6,6 +6,11 @@ FROM docker:cli AS docker-cli
 
 # Stage 2: runtime image with just the Python app + docker CLI binary.
 FROM python:3.12-slim
+
+ARG VLLM_OBSERVER_BUILD_COMMIT=unknown
+ARG VLLM_OBSERVER_BUILD_DATE=unknown
+ENV VLLM_OBSERVER_BUILD_COMMIT=$VLLM_OBSERVER_BUILD_COMMIT \
+    VLLM_OBSERVER_BUILD_DATE=$VLLM_OBSERVER_BUILD_DATE
 COPY --from=docker-cli /usr/local/bin/docker /usr/local/bin/docker
 WORKDIR /app
 COPY observer ./observer

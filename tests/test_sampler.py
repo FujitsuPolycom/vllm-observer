@@ -1,4 +1,6 @@
 import unittest
+import threading
+import time
 from unittest.mock import patch
 
 from observer.sampler import MetricSampler
@@ -25,8 +27,38 @@ class FakeCollector:
     def instances(self):
         return [{"name": "model", "running": True}]
 
+    def logs(self, instance):
+        return []
+
 
 class SamplerTests(unittest.TestCase):
+    def test_collection_uses_bounded_parallel_workers_and_reports_health(self):
+        active = 0
+        maximum = 0
+        lock = threading.Lock()
+
+        class ManyCollector(FakeCollector):
+            def running_instances(self):
+                return [{"name": f"model-{index}", "running": True} for index in range(6)]
+
+        def fetch(_):
+            nonlocal active, maximum
+            with lock:
+                active += 1
+                maximum = max(maximum, active)
+            time.sleep(0.02)
+            with lock:
+                active -= 1
+            return METRICS % (100, 50, 10)
+
+        with patch.dict("os.environ", {"VLLM_OBSERVER_COLLECTION_WORKERS": "3"}):
+            sampler = MetricSampler(ManyCollector(), fetch=fetch)
+        sampler.sample_all()
+        status = sampler.status()
+        self.assertGreater(maximum, 1)
+        self.assertLessEqual(maximum, 3)
+        self.assertEqual(status["collection"]["workers"], 3)
+        self.assertEqual(len(status["collection"]["sources"]), 6)
     def test_api_reads_do_not_change_sampling_cadence(self):
         payloads = iter([METRICS % (100, 50, 10), METRICS % (300, 150, 50)])
         sampler = MetricSampler(FakeCollector(), fetch=lambda _: next(payloads))

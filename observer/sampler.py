@@ -7,30 +7,33 @@ import os
 import threading
 import time
 from collections import defaultdict, deque
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from urllib.request import Request, urlopen
 
-from .collector import Collector
+from .collector import Collector, redact_url
+from .config import build_info, env_float, env_int
 from .prometheus import Sample, model_names, normalize, parse_samples
 
 
 class MetricSampler:
     def __init__(self, collector: Collector, fetch=None, fetch_json=None) -> None:
         self.collector = collector
-        self.interval = max(0.25, float(os.getenv("VLLM_OBSERVER_SAMPLE_SECONDS", "1")))
-        self.max_points = max(60, int(os.getenv("VLLM_OBSERVER_HISTORY_POINTS", "3600")))
-        self.analytics_interval = max(10.0, float(os.getenv("VLLM_OBSERVER_ANALYTICS_SAMPLE_SECONDS", "60")))
-        self.analytics_age_seconds = max(3600, int(os.getenv("VLLM_OBSERVER_ANALYTICS_HISTORY_SECONDS", "604800")))
+        self.interval = env_float("VLLM_OBSERVER_SAMPLE_SECONDS", 1, 0.25)
+        self.max_points = env_int("VLLM_OBSERVER_HISTORY_POINTS", 3600, 60)
+        self.analytics_interval = env_float("VLLM_OBSERVER_ANALYTICS_SAMPLE_SECONDS", 60, 10)
+        self.analytics_age_seconds = env_int("VLLM_OBSERVER_ANALYTICS_HISTORY_SECONDS", 604800, 3600)
         self.max_analytics_points = max(60, int(self.analytics_age_seconds / self.analytics_interval) + 1)
-        self.log_interval = max(1.0, float(os.getenv("VLLM_OBSERVER_LOG_SAMPLE_SECONDS", "3")))
+        self.log_interval = env_float("VLLM_OBSERVER_LOG_SAMPLE_SECONDS", 3, 1)
         default_log_points = int(604800 / self.log_interval) + 1
-        self.max_log_points = max(20, int(os.getenv("VLLM_OBSERVER_LOG_HISTORY_POINTS", str(default_log_points))))
-        self.max_log_age_seconds = max(60, int(os.getenv("VLLM_OBSERVER_LOG_HISTORY_SECONDS", "604800")))
-        self.log_context_seconds = max(1, int(os.getenv("VLLM_OBSERVER_LOG_CONTEXT_SECONDS", "30")))
-        self.log_context_lines = max(20, int(os.getenv("VLLM_OBSERVER_LOG_CONTEXT_LINES", "1000")))
-        self.max_log_bytes = max(1_000_000, int(os.getenv("VLLM_OBSERVER_LOG_HISTORY_MAX_BYTES", "50000000")))
+        self.max_log_points = env_int("VLLM_OBSERVER_LOG_HISTORY_POINTS", default_log_points, 20)
+        self.max_log_age_seconds = env_int("VLLM_OBSERVER_LOG_HISTORY_SECONDS", 604800, 60)
+        self.log_context_seconds = env_int("VLLM_OBSERVER_LOG_CONTEXT_SECONDS", 30, 1)
+        self.log_context_lines = env_int("VLLM_OBSERVER_LOG_CONTEXT_LINES", 1000, 20)
+        self.max_log_bytes = env_int("VLLM_OBSERVER_LOG_HISTORY_MAX_BYTES", 50000000, 1_000_000)
+        self.workers = env_int("VLLM_OBSERVER_COLLECTION_WORKERS", 8, 1, 64)
         data_dir = os.getenv("VLLM_OBSERVER_DATA_DIR", "").strip()
         self.history_file = Path(data_dir) / "history.json" if data_dir else None
         self.analytics_file = Path(data_dir) / "analytics-history.json" if data_dir else None
@@ -55,6 +58,10 @@ class MetricSampler:
         self._last_persist = 0.0
         self._last_log_capture = 0.0
         self._last_inventory = 0.0
+        self._last_cycle_duration = 0.0
+        self._missed_cycles = 0
+        self._log_entries_trimmed = 0
+        self._sources: dict[str, dict[str, Any]] = {}
         self._inventory: list[dict[str, Any]] = []
         self._load()
 
@@ -81,20 +88,30 @@ class MetricSampler:
             self._stop.wait(max(0.0, next_sample - time.monotonic()))
 
     def sample_all(self) -> None:
+        cycle_started = time.perf_counter()
         now = time.monotonic()
         if not self._inventory or now - self._last_inventory >= 10:
             discover = getattr(self.collector, "running_instances", self.collector.instances)
             self._inventory = [item for item in discover() if item.get("running")]
             self._last_inventory = now
         instances = self._inventory
-        for item in instances:
-            self.sample(item["name"], item)
+        with ThreadPoolExecutor(max_workers=min(self.workers, max(1, len(instances))), thread_name_prefix="metric") as pool:
+            futures = {pool.submit(self.sample, item["name"], item): item["name"] for item in instances}
+            for future in as_completed(futures):
+                try:
+                    future.result()
+                except Exception as error:
+                    self._set_status(futures[future], {"instance": futures[future], "timestamp": round(time.time() * 1000), "status": "error", "error": str(error)})
         if now - self._last_log_capture >= self.log_interval:
             self._capture_logs(instances)
             self._last_log_capture = now
         self._persist()
+        self._last_cycle_duration = time.perf_counter() - cycle_started
+        if self._last_cycle_duration > self.interval:
+            self._missed_cycles += 1
 
     def sample(self, instance: str, record: dict[str, Any] | None = None) -> dict[str, Any]:
+        scrape_started = time.perf_counter()
         wall_time = time.time()
         monotonic = time.monotonic()
         url = self.collector.metrics_url_for(instance, record)
@@ -103,18 +120,21 @@ class MetricSampler:
         base = {
             "instance": instance,
             "timestamp": round(wall_time * 1000),
-            "source": {"url": url, "expected_model": expected_model},
+            "source": {"url": redact_url(url), "expected_model": expected_model},
         }
         if not url:
             return self._set_status(instance, {**base, "status": "unconfigured", "error": "No metrics endpoint could be resolved for this container. Set PORT/VLLM_PORT env or --port flag on the workload, or configure VLLM_OBSERVER_METRICS_URL or VLLM_OBSERVER_METRICS_URL_<INSTANCE>."})
         try:
             current = parse_samples(self._fetch(url))
         except Exception as error:  # Network libraries raise several environment-specific subclasses.
+            self._record_source(instance, url, scrape_started, str(error), False)
             return self._set_status(instance, {**base, "status": "error", "error": str(error)})
         if not current:
+            self._record_source(instance, url, scrape_started, "Metrics endpoint returned no Prometheus samples", False)
             return self._set_status(instance, {**base, "status": "error", "error": "Metrics endpoint returned no Prometheus samples"})
 
         observed_models = model_names(current)
+        self._record_source(instance, url, scrape_started, None, True)
         base["source"]["observed_models"] = observed_models
         if expected_model and observed_models and not _model_matches(expected_model, observed_models):
             return self._set_status(
@@ -237,6 +257,7 @@ class MetricSampler:
         return {
             "service": "vllm-observer",
             "api_version": "v1",
+            "build": build_info(),
             "sample_seconds": self.interval,
             "history_points": self.max_points,
             "analytics_sample_seconds": self.analytics_interval,
@@ -248,7 +269,27 @@ class MetricSampler:
             "log_history_points": self.max_log_points,
             "log_history_max_bytes": self.max_log_bytes,
             "log_history_estimated_bytes": self._log_bytes(),
+            "log_history_utilization": round(self._log_bytes() / self.max_log_bytes, 4),
+            "log_entries_trimmed": self._log_entries_trimmed,
+            "collection": {
+                "workers": self.workers,
+                "last_cycle_seconds": round(self._last_cycle_duration, 3),
+                "missed_cycles": self._missed_cycles,
+                "sources": dict(self._sources),
+            },
             "instances": latest,
+        }
+
+    def _record_source(self, instance: str, url: str, started: float, error: str | None, success: bool) -> None:
+        now = round(time.time() * 1000)
+        previous = self._sources.get(instance, {})
+        self._sources[instance] = {
+            "url": redact_url(url),
+            "reachable": success,
+            "last_attempt": now,
+            "last_success": now if success else previous.get("last_success"),
+            "duration_seconds": round(time.perf_counter() - started, 3),
+            "error": error,
         }
 
     def _set_status(self, instance: str, value: dict[str, Any]) -> dict[str, Any]:
@@ -472,12 +513,14 @@ class MetricSampler:
                 or len(points) > self.max_log_points
             ):
                 self._log_bytes_total -= self._entry_bytes(points.popleft())
+                self._log_entries_trimmed += 1
         while self._log_bytes_total > self.max_log_bytes:
             candidates = [(points[0]["timestamp"], name) for name, points in self._log_history.items() if points]
             if not candidates:
                 break
             _, oldest_name = min(candidates)
             self._log_bytes_total -= self._entry_bytes(self._log_history[oldest_name].popleft())
+            self._log_entries_trimmed += 1
 
     @staticmethod
     def _entry_bytes(entry: dict[str, Any]) -> int:
