@@ -2,10 +2,12 @@ import unittest
 import subprocess
 from unittest.mock import patch
 
-from observer.collector import Collector
+from observer.collector import Collector, redact_url
 
 
 class CollectorTests(unittest.TestCase):
+    def test_metrics_url_redacts_credentials_and_query(self):
+        self.assertEqual(redact_url("https://user:secret@example.test/metrics?token=abc#x"), "https://example.test/metrics")
     def setUp(self):
         self.collector = Collector()
 

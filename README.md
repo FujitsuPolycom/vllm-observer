@@ -147,12 +147,25 @@ VLLM_OBSERVER_METRICS_URL_MY_VLLM=http://model-host:8000/metrics
 
 ## HTTP API
 
+### Access control and CORS
+
+The API and dashboard support optional HTTP Basic authentication through
+`VLLM_OBSERVER_AUTH_USERNAME` and `VLLM_OBSERVER_AUTH_PASSWORD`, or bearer-token
+authentication through `VLLM_OBSERVER_AUTH_TOKEN`. The container health probe
+remains unauthenticated. Cross-origin API responses are disabled by default;
+set `VLLM_OBSERVER_CORS_ORIGINS` to an explicit comma-separated allowlist.
+
+`/api/v1/schema` publishes the stable API contracts. `/api/v1/status` includes
+release provenance, bounded worker-pool health, scrape reachability and timing,
+missed-cycle counts, and log-retention pressure.
+
 The container exposes a versioned, read-only JSON API on port `8088`.
 
 | Endpoint | Purpose |
 | --- | --- |
 | `/api/v1` | API discovery document |
 | `/api/v1/status` | Sampler cadence, persistence, and source status |
+| `/api/v1/schema` | Machine-readable API contracts |
 | `/api/v1/instances` | Discovered containers and runtime configuration |
 | `/api/v1/instances/{name}/snapshot` | Latest verified telemetry point |
 | `/api/v1/instances/{name}/history?limit=900` | Rolling real-sample history |
@@ -188,6 +201,11 @@ API reads never trigger metric collection. One background sampler owns counter s
 | `VLLM_OBSERVER_ANALYTICS_SAMPLE_SECONDS` | `60` | Long-term Request Analytics snapshot interval |
 | `VLLM_OBSERVER_ANALYTICS_HISTORY_SECONDS` | `604800` | Long-term Request Analytics retention age; default is seven days |
 | `VLLM_OBSERVER_DATA_DIR` | empty | Directory for durable rolling history |
+| `VLLM_OBSERVER_AUTH_USERNAME` | empty | Optional HTTP Basic username; requires password |
+| `VLLM_OBSERVER_AUTH_PASSWORD` | empty | Optional HTTP Basic password |
+| `VLLM_OBSERVER_AUTH_TOKEN` | empty | Optional bearer token for API clients |
+| `VLLM_OBSERVER_CORS_ORIGINS` | empty | Explicit comma-separated CORS origin allowlist |
+| `VLLM_OBSERVER_COLLECTION_WORKERS` | `8` | Bounded simultaneous metric scrapes |
 
 The default Compose deployment sets `VLLM_OBSERVER_DATA_DIR=/data` on a named volume. The log archive is deduplicated by newly seen lines, capped at 50 MB by default, and trimmed to seven days. A high-volume logger may reach the byte cap before seven days.
 
