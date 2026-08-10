@@ -165,11 +165,11 @@ h3 { margin: 0; font-size: 14px; }
   background: var(--line);
   gap: 1px;
 }
-.metric-card { min-width: 0; min-height: 110px; padding: 11px 12px; background: var(--panel); }
-.metric-card > span { display: block; min-height: 30px; color: var(--muted); font-size: 11px; font-weight: 750; text-transform: uppercase; }
-.metric-card strong { display: block; margin: 5px 0; font: 700 clamp(22px, 2vw, 30px)/1 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: nowrap; }
+.metric-card { min-width: 0; min-height: 76px; padding: 9px 11px; background: var(--panel); }
+.metric-card > span { display: block; min-height: 20px; color: var(--muted); font-size: 9px; font-weight: 800; line-height: 1.15; text-transform: uppercase; }
+.metric-card strong { display: block; margin: 3px 0 0; font: 700 clamp(20px, 1.7vw, 26px)/1 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: nowrap; }
 .metric-card strong small { color: var(--muted); font-size: 11px; font-weight: 600; }
-.metric-card p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.35; }
+.metric-card p { display: none; }
 .metric-card.unavailable strong { color: var(--strong-line); }
 .request-card-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .request-card, .request-latency-grid article { border: 1px solid var(--line); border-radius: 5px; padding: 12px; background: var(--panel); }
@@ -187,6 +187,14 @@ h3 { margin: 0; font-size: 14px; }
 .percentile-row b { color: var(--text); font-weight: 700; }
 .request-small-grid { padding: 12px; border: 1px solid var(--line); border-radius: 5px; background: var(--panel); }
 /* Collapsible sections (model details, request analytics, lmcache) */
+.compact-disclosure-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding-top: 10px;
+}
+.compact-disclosure-grid > .section { min-width: 0; padding: 0; }
+.compact-disclosure-grid > .section:has(.collapsible-section[open]) { grid-column: 1 / -1; }
 .collapsible-section > summary.section-heading {
   min-height: 0;
   padding: 10px 14px;
@@ -198,6 +206,31 @@ h3 { margin: 0; font-size: 14px; }
   background: var(--panel);
   align-items: center;
   transition: border-color 0.15s, background 0.15s;
+}
+.compact-disclosure-grid .collapsible-section > summary.section-heading {
+  min-height: 52px;
+  padding: 7px 10px;
+  gap: 8px;
+}
+.compact-disclosure-grid .collapsible-section > summary.section-heading::before {
+  width: 14px;
+  height: 14px;
+  font-size: 11px;
+}
+.compact-disclosure-grid .collapsible-section h2 { font-size: 15px; line-height: 1.1; }
+.compact-disclosure-grid .collapsible-section .eyebrow {
+  margin-bottom: 2px;
+  overflow: hidden;
+  font-size: 8px;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.compact-disclosure-grid .collapsible-section .section-meta {
+  max-width: 42%;
+  overflow: hidden;
+  font-size: 9px;
+  text-overflow: ellipsis;
 }
 .collapsible-section > summary.section-heading::-webkit-details-marker { display: none; }
 .collapsible-section > summary.section-heading::after {
@@ -595,6 +628,8 @@ body.dark .log-lines { background: #0b1011; color: #d9e5e3; }
   .top-actions { width: 100%; overflow-x: auto; padding-bottom: 2px; }
   .control-band, .split-section { grid-template-columns: 1fr; }
   .chart-grid { grid-template-columns: 1fr; }
+  .compact-disclosure-grid { grid-template-columns: 1fr; }
+  .compact-disclosure-grid > .section:has(.collapsible-section[open]) { grid-column: auto; }
   .request-card-grid { grid-template-columns: repeat(2, 1fr); }
   .request-latency-grid { grid-template-columns: 1fr; }
   .section-heading { align-items: flex-start; flex-direction: column; }
@@ -620,7 +655,7 @@ body.dark .log-lines { background: #0b1011; color: #d9e5e3; }
   .button { padding: 0 10px; font-size: 12px; }
   .source-facts, .metric-grid, .capability-grid { grid-template-columns: 1fr 1fr; }
   .source-facts div:first-child { grid-column: 1 / -1; }
-  .metric-card { min-height: 104px; }
+  .metric-card { min-height: 72px; }
   .timeline-control { grid-template-columns: 1fr; }
   .timeline-control output { text-align: left; }
   .timeline-readout { min-width: 0; }
