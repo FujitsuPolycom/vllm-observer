@@ -8,7 +8,7 @@ Use this document to start a new LLM on the repository without reconstructing th
 - Local path: `C:\Users\Cody\Documents\Github\vllm-observer`
 - Branch: `master`
 - `master` and `origin/master` are current together at the latest commit.
-- Current commit: `5690274 fix: keep chart tooltip clear of cursor`
+- Current commit: `972868b Redesign collapsible section headers`
 - AI01 deployment: `/opt/vllm-observer`, `http://192.168.0.213:8088/`
 - AI01 is a LAN-only host at `192.168.0.213`; Tailscale is not installed on AI01 itself. Tailscale subnet routing is enabled on pvec01 (192.168.0.11) and pvec03 (192.168.0.13), advertising `192.168.0.0/24`. Remote Tailscale devices with `--accept-routes` can reach `http://192.168.0.213:8088/` directly.
 - The Compose listener is explicitly `0.0.0.0:8088`; Docker publishes port `8088` on all host interfaces.
@@ -73,7 +73,7 @@ Do not expose the current service directly to the public internet. It currently 
 - Request Analytics is collapsible and has a separate long-term cache: one snapshot per minute by default, seven days by default, persisted in `/data/analytics-history.json`, and exposed at `/api/v1/instances/{name}/analytics`.
 - Metric history is bounded and persisted. Logs are deduplicated by newly seen lines, then trimmed by age and byte cap.
 - Charts support drag/drop, arrow reordering, expansion, light/dark mode, minimal/rich mode, model labels, series toggles, crosshair hover values, synchronized hover, cursor-aware tooltip placement, click-to-log pinning, and HTML report export.
-- `Bridge gaps` is enabled by default for connected interpolated lines; turning it off breaks lines across long sample gaps. Scheduler charts remain discrete.
+- Long sample gaps are split instead of being drawn as fabricated interpolation tails, including after a backgrounded browser tab resumes. Scheduler charts remain discrete.
 - The Live performance heading shows dynamic model/TP/DCP/MTP/GPU/context/dtype/runtime details from inspected environment variables or common launch flags. Values are not hardcoded to AI01 or GLM.
 - Generated Compose output is a best-effort migration draft. Review paths, secrets, GPU/runtime settings, and external dependencies before starting it.
 
@@ -85,6 +85,28 @@ Do not expose the current service directly to the public internet. It currently 
 - Point-selected log context: plus/minus 30 seconds, maximum 1,000 lines.
 
 Relevant variables are `VLLM_OBSERVER_ANALYTICS_SAMPLE_SECONDS`, `VLLM_OBSERVER_ANALYTICS_HISTORY_SECONDS`, `VLLM_OBSERVER_HISTORY_POINTS`, `VLLM_OBSERVER_LOG_HISTORY_SECONDS`, and `VLLM_OBSERVER_LOG_HISTORY_MAX_BYTES`.
+
+## Contribution Workflow
+
+Contribute to the public repository as `FujitsuPolycom`. Sync `master` before starting, preserve unrelated working-tree changes, and use a focused branch for non-trivial work:
+
+```powershell
+git fetch origin
+git pull --ff-only origin master
+git switch -c fix/short-description
+```
+
+Run the checks before committing:
+
+```powershell
+python -m unittest discover -s tests -v
+Get-ChildItem dashboard\js\*.js | ForEach-Object { node --check $_.FullName }
+docker compose -f compose\docker-compose.yml config
+docker compose -f docker\docker-compose.files.yml config
+git diff --check
+```
+
+Commit with an imperative message, push the branch, and open a PR against `master`. Do not deploy uncommitted or unpushed code.
 
 ## Next Priorities
 
@@ -99,6 +121,12 @@ Read `docs/FUTURE_IMPROVEMENTS.md` before implementing changes. Highest priority
 7. Add API contract tests and Playwright browser tests.
 
 The long-term analytics API exists, but a dedicated historical Request Analytics chart/view is still future work.
+
+## Startup Prompt
+
+```text
+You are contributing to C:\Users\Cody\Documents\Github\vllm-observer as FujitsuPolycom. Read docs/AGENT_GUIDE.md, README.md, docs/HANDOFF.md, and docs/FUTURE_IMPROVEMENTS.md. Inspect git status and sync master before editing. Preserve Prometheus-only performance provenance, read-only workload access, model identity checks, discrete scheduler gauges, bounded retention, redaction, and model-agnostic behavior. Run unit tests, JavaScript syntax checks, both Compose config checks, and git diff --check before committing. Use a focused branch and PR against master. Deploy AI01 only after the change is pushed and deployment is explicitly requested.
+```
 
 ## Guardrails
 
