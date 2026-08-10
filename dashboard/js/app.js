@@ -1,5 +1,6 @@
 import { api } from './api.js';
 import { TimeSeriesChart } from './chart.js';
+import { needsHistoryReload, normalizeHistory, selectTimeWindow } from './history.js';
 import { formatTime, localTimezone, setTimezone } from './time.js';
 import {
   renderConfiguration,
@@ -31,6 +32,8 @@ const state = {
   fullLogLines: [],
   refreshGeneration: 0,
 };
+let historyReload = null;
+let lastResumeAt = 0;
 
 function loadColorMode() {
   try { return localStorage.getItem('vllm-observer:color-mode') === 'dark' ? 'dark' : 'light'; } catch (error) { return 'light'; }
@@ -252,7 +255,7 @@ async function selectWorkload(name) {
       api.logs(name),
     ]);
     if (generation !== state.refreshGeneration) return;
-    state.history = history.points || [];
+    state.history = normalizeHistory(history.points);
     window.__observerConfig = config;
     renderConfiguration(config);
     renderLogs(logs);
@@ -270,6 +273,30 @@ async function selectWorkload(name) {
   }
 }
 
+async function reloadServerHistory(resetView = false) {
+  if (!state.selected) return;
+  if (historyReload) return historyReload;
+  const name = state.selected;
+  const generation = state.refreshGeneration;
+  historyReload = (async () => {
+    const history = await api.history(name, 3600);
+    if (generation !== state.refreshGeneration || name !== state.selected) return;
+    state.history = normalizeHistory(history.points);
+    if (resetView) {
+      state.historyOffset = 0;
+      Object.values(charts).forEach(chart => chart.resetZoom());
+    }
+    drawCharts();
+    // Browsers may restore layout dimensions one or two frames after a tab
+    // becomes visible. Redraw after both restoration frames.
+    requestAnimationFrame(() => {
+      drawCharts();
+      requestAnimationFrame(drawCharts);
+    });
+  })().finally(() => { historyReload = null; });
+  return historyReload;
+}
+
 async function loadSnapshot() {
   if (state.paused || !state.selected || document.hidden) return;
   const generation = state.refreshGeneration;
@@ -279,6 +306,10 @@ async function loadSnapshot() {
     renderSnapshot(point);
     renderModelDetails(point, window.__observerConfig);
     renderLMCache(point);
+    const gapLimit = Math.max(5000, Number(point.sample_seconds || 1) * 5000);
+    if (needsHistoryReload(state.history, point, gapLimit)) {
+      await reloadServerHistory(true);
+    }
     if (point.status === 'ok' && !state.history.some(item => item.timestamp === point.timestamp)) {
       state.history.push(point);
       state.history = state.history.slice(-3600);
@@ -312,11 +343,9 @@ async function loadLogs() {
 
 function drawCharts() {
   const windowSeconds = Number(element('windowSize').value);
-  const maxOffset = Math.max(0, state.history.length - windowSeconds);
+  const maxOffset = Math.max(0, state.history.length - 1);
   state.historyOffset = Math.min(state.historyOffset, maxOffset);
-  const end = state.history.length - state.historyOffset;
-  const start = Math.max(0, end - windowSeconds);
-  const visible = state.history.slice(start, end);
+  const visible = selectTimeWindow(state.history, state.historyOffset, windowSeconds);
   const smoothness = Number(element('smoothness').value);
   Object.values(charts).forEach(chart => {
     chart.setCrosshair(state.crosshair);
@@ -503,18 +532,26 @@ async function loadFullLog() {
     element('fullLogMeta').textContent = error.message;
   }
 }
-document.addEventListener('visibilitychange', () => {
+async function resumeLiveView() {
   if (document.hidden || state.paused || !state.selected) return;
-  // Background timer throttling can leave a stale cursor and hover state.
+  const now = Date.now();
+  if (historyReload || now - lastResumeAt < 500) return;
+  lastResumeAt = now;
+  // Browser timer throttling means snapshots were intentionally skipped while
+  // hidden. Replace client state with the server-owned rolling history.
   state.refreshGeneration += 1;
   state.historyOffset = 0;
   clearHover();
-  drawCharts();
-  loadInstances();
-  loadSnapshot();
-  loadLogs();
-  loadFullLog();
-});
+  try {
+    await reloadServerHistory(true);
+  } catch (error) {
+    setConnection('error', 'History refresh failed');
+  }
+  await Promise.allSettled([loadInstances(), loadSnapshot(), loadLogs(), loadFullLog()]);
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) resumeLiveView(); });
+window.addEventListener('pageshow', resumeLiveView);
+window.addEventListener('focus', resumeLiveView);
 setupChartInteractions();
 setupSeriesToggles();
 setupZoomControls();
