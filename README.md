@@ -76,6 +76,20 @@ Docker host. It discovers running and stopped vLLM-like containers, reads
 Docker logs, and resolves a metrics port from `PORT`, `VLLM_PORT`, or
 `--port`.
 
+On Linux, add `compose/docker-compose.host.yml` when Observer must reach a
+metrics or LMCache HTTP endpoint that intentionally binds only to host
+loopback:
+
+```bash
+docker compose -f compose/docker-compose.yml -f compose/docker-compose.host.yml up -d --build
+```
+
+Set `VLLM_OBSERVER_LMCACHE_URL` for one shared LMCache HTTP API, or use
+`VLLM_OBSERVER_LMCACHE_URL_<INSTANCE>` per workload. Observer does not guess an
+HTTP port merely because `LMCACHE_*` variables exist; embedded Prometheus
+LMCache metrics remain visible and are labeled separately when no HTTP API is
+configured.
+
 Use `docker/docker-compose.files.yml` when Docker discovery is unavailable
 or you only want to expose selected log files. Create the local log
 directory, put the files in it, and provide a metrics URL that is reachable
@@ -206,6 +220,7 @@ API reads never trigger metric collection. One background sampler owns counter s
 | `VLLM_OBSERVER_AUTH_TOKEN` | empty | Optional bearer token for API clients |
 | `VLLM_OBSERVER_CORS_ORIGINS` | empty | Explicit comma-separated CORS origin allowlist |
 | `VLLM_OBSERVER_COLLECTION_WORKERS` | `8` | Bounded simultaneous metric scrapes |
+| `VLLM_OBSERVER_LMCACHE_URL` | empty | Explicit shared LMCache HTTP API base URL |
 
 The default Compose deployment sets `VLLM_OBSERVER_DATA_DIR=/data` on a named volume. The log archive is deduplicated by newly seen lines, capped at 50 MB by default, and trimmed to seven days. A high-volume logger may reach the byte cap before seven days.
 

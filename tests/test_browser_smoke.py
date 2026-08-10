@@ -17,7 +17,7 @@ class BrowserSmokeTests(unittest.TestCase):
             with urlopen(base) as response:
                 html = response.read().decode()
             self.assertIn('type="module"', html)
-            for module in ("api.js", "app.js", "chart.js", "history.js", "render.js", "time.js"):
+            for module in ("api.js", "app.js", "build.js", "chart.js", "history.js", "lifecycle.js", "render.js", "time.js"):
                 with urlopen(f"{base}/js/{module}") as response:
                     self.assertEqual(response.status, 200)
             with urlopen(f"{base}/api/v1/status") as response:

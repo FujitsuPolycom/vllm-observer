@@ -95,6 +95,11 @@ class MetricSampler:
             self._inventory = [item for item in discover() if item.get("running")]
             self._last_inventory = now
         instances = self._inventory
+        active_names = {item["name"] for item in instances}
+        with self._lock:
+            for mapping in (self._status, self._sources, self._previous):
+                for inactive in set(mapping) - active_names:
+                    mapping.pop(inactive, None)
         with ThreadPoolExecutor(max_workers=min(self.workers, max(1, len(instances))), thread_name_prefix="metric") as pool:
             futures = {pool.submit(self.sample, item["name"], item): item["name"] for item in instances}
             for future in as_completed(futures):

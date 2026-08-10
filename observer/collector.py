@@ -47,6 +47,7 @@ class Collector:
         self.paths = [Path(x.strip()) for x in os.getenv("VLLM_OBSERVER_LOG_PATHS", "").split(",") if x.strip()]
         self.metrics_url = os.getenv("VLLM_OBSERVER_METRICS_URL", "").strip()
         self.metrics_host = os.getenv("VLLM_OBSERVER_METRICS_HOST", "127.0.0.1").strip()
+        self.lmcache_url = os.getenv("VLLM_OBSERVER_LMCACHE_URL", "").strip().rstrip("/")
 
     def _run(self, args: list[str], timeout: int = 8) -> subprocess.CompletedProcess[str]:
         try:
@@ -257,6 +258,8 @@ class Collector:
         ).strip()
         if configured:
             return configured.rstrip("/")
+        if self.lmcache_url:
+            return self.lmcache_url
         record = record or next((item for item in self.docker_instances() if item["name"] == instance), None)
         if not record or not record.get("running"):
             return ""
@@ -292,11 +295,9 @@ class Collector:
             if record.get("network_mode") != "host":
                 port_number = self._published_port(record, port_number) or port_number
             return f"http://{self._metrics_host()}:{port_number}"
-        # Fallback: assume MP mode default port 8080
-        port_number = 8080
-        if record.get("network_mode") != "host":
-            port_number = self._published_port(record, port_number) or port_number
-        return f"http://{self._metrics_host()}:{port_number}"
+        # LMCache presence does not imply that its optional HTTP API is enabled.
+        # Never report an invented default endpoint as unreachable.
+        return ""
 
     def expected_model_for(self, instance: str, record: dict[str, Any] | None = None) -> str:
         record = record or next((item for item in self.docker_instances() if item["name"] == instance), None)

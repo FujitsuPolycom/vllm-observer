@@ -12,6 +12,13 @@ test('a snapshot after a background gap requires authoritative history reload', 
   assert.equal(needsHistoryReload(history, { timestamp: 3_000, status: 'ok' }, 5_000), false);
 });
 
+test('a thirty-minute browser throttle gap triggers recovery', () => {
+  const history = [{ timestamp: 1_000, status: 'ok' }, { timestamp: 2_000, status: 'ok' }];
+  const resumed = { timestamp: 1_802_000, status: 'ok' };
+  assert.equal(needsHistoryReload(history, resumed, 5_000), true);
+  assert.deepEqual(selectTimeWindow([...history, resumed], 0, 60).map(point => point.timestamp), [1_802_000]);
+});
+
 test('one-minute window never includes stale points across a background gap', () => {
   const history = [
     { timestamp: 1_000 },

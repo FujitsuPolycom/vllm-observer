@@ -32,6 +32,14 @@ class FakeCollector:
 
 
 class SamplerTests(unittest.TestCase):
+    def test_sampling_prunes_status_and_sources_for_inactive_instances(self):
+        sampler = MetricSampler(FakeCollector(), fetch=lambda _: METRICS % (100, 50, 10))
+        sampler._status["retired-model"] = {"instance": "retired-model", "status": "ok"}
+        sampler._sources["retired-model"] = {"reachable": True}
+        sampler.sample_all()
+        status = sampler.status()
+        self.assertNotIn("retired-model", status["instances"])
+        self.assertNotIn("retired-model", status["collection"]["sources"])
     def test_collection_uses_bounded_parallel_workers_and_reports_health(self):
         active = 0
         maximum = 0

@@ -1,0 +1,4 @@
+services:
+  vllm-observer:
+    network_mode: host
+    ports: !reset []

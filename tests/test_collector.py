@@ -57,7 +57,7 @@ class CollectorTests(unittest.TestCase):
         }
         self.assertEqual(self.collector.lmcache_url_for("model", record), "")
 
-    def test_lmcache_url_uses_default_port_with_lmcache_env(self):
+    def test_lmcache_url_does_not_guess_an_unverified_default_port(self):
         record = {
             "name": "model",
             "running": True,
@@ -65,7 +65,13 @@ class CollectorTests(unittest.TestCase):
             "command": "vllm serve /model --port 8000",
             "network_mode": "host",
         }
-        self.assertEqual(self.collector.lmcache_url_for("model", record), "http://127.0.0.1:8080")
+        self.assertEqual(self.collector.lmcache_url_for("model", record), "")
+
+    def test_lmcache_url_uses_global_explicit_endpoint(self):
+        record = {"name": "model", "running": True, "env": {}, "command": "vllm serve /model", "network_mode": "host"}
+        with patch.dict("os.environ", {"VLLM_OBSERVER_LMCACHE_URL": "http://127.0.0.1:18081/"}):
+            collector = Collector()
+            self.assertEqual(collector.lmcache_url_for("model", record), "http://127.0.0.1:18081")
 
     def test_lmcache_url_uses_env_port(self):
         record = {

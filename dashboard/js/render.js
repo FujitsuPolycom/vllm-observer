@@ -335,8 +335,10 @@ export function renderLMCache(point) {
   const promHealthy = prom.is_healthy !== undefined ? prom.is_healthy === 1 : null;
   const isHealthy = hc?.status === 'healthy' || statusObj.is_healthy === true || promHealthy === true;
   const isUnreachable = health.unreachable && !hc && !statusObj.is_healthy;
-  const badgeClass = isHealthy ? 'lmcache-badge healthy' : isUnreachable ? 'lmcache-badge unreachable' : 'lmcache-badge unhealthy';
-  const badgeText = isHealthy ? 'HEALTHY' : isUnreachable ? 'UNREACHABLE' : 'UNHEALTHY';
+  const prometheusActive = Object.keys(prom).length > 0;
+  const operational = isHealthy || prometheusActive;
+  const badgeClass = operational ? 'lmcache-badge healthy' : isUnreachable ? 'lmcache-badge unreachable' : 'lmcache-badge unhealthy';
+  const badgeText = isHealthy ? 'HEALTHY' : prometheusActive && isUnreachable ? 'PROMETHEUS ACTIVE · HTTP UNREACHABLE' : prometheusActive ? 'PROMETHEUS ACTIVE' : isUnreachable ? 'HTTP UNREACHABLE' : 'UNHEALTHY';
   parts.push(`<div class="${badgeClass}">${badgeText}</div>`);
 
   // Health endpoint info
@@ -456,12 +458,14 @@ export function renderLMCache(point) {
   if (meta) {
     const bits = [];
     if (isHealthy) bits.push('healthy');
-    else if (isUnreachable) bits.push('unreachable');
+    else if (prometheusActive) bits.push('Prometheus active');
+    else if (isUnreachable) bits.push('HTTP unreachable');
     else bits.push('unhealthy');
     if (Object.keys(prom).length) bits.push(`${Object.keys(prom).length} prom metrics`);
     if (health.backends) bits.push(`${Object.keys(health.backends).length} backends`);
     if (health.lmc_version) bits.push(`v${health.lmc_version}`);
     if (health.url) bits.push('HTTP API');
+    else if (prometheusActive) bits.push('HTTP API not configured');
     meta.textContent = bits.join(' · ');
   }
 }
