@@ -1,6 +1,8 @@
 import { api } from './api.js';
 import { TimeSeriesChart } from './chart.js';
+import { buildChanged, shouldAutoReload } from './build.js';
 import { needsHistoryReload, normalizeHistory, selectTimeWindow } from './history.js';
+import { installResumeListeners } from './lifecycle.js';
 import { formatTime, localTimezone, setTimezone } from './time.js';
 import {
   renderConfiguration,
@@ -31,9 +33,11 @@ const state = {
   fullLogFilter: '',
   fullLogLines: [],
   refreshGeneration: 0,
+  buildCommit: '',
 };
 let historyReload = null;
 let lastResumeAt = 0;
+let buildReloadTimer = null;
 
 function loadColorMode() {
   try { return localStorage.getItem('vllm-observer:color-mode') === 'dark' ? 'dark' : 'light'; } catch (error) { return 'light'; }
@@ -233,6 +237,23 @@ async function loadInstances() {
   }
 }
 
+async function checkBuild() {
+  try {
+    const payload = await api.status();
+    const incoming = payload.build?.commit || '';
+    if (!state.buildCommit) {
+      state.buildCommit = incoming;
+      return;
+    }
+    if (!buildChanged(state.buildCommit, incoming)) return;
+    element('buildUpdate').hidden = false;
+    const live = shouldAutoReload({ hidden: document.hidden, paused: state.paused, pinned: Boolean(state.focusTimestamp) });
+    if (live && !buildReloadTimer) buildReloadTimer = setTimeout(() => window.location.reload(), 3000);
+  } catch (error) {
+    // Snapshot polling already reports connectivity; build checks stay quiet.
+  }
+}
+
 async function selectWorkload(name) {
   const generation = ++state.refreshGeneration;
   state.selected = name;
@@ -398,6 +419,7 @@ function togglePaused() {
   if (!state.paused) { loadSnapshot(); loadLogs(); loadFullLog(); }
 }
 element('pauseButton').addEventListener('click', togglePaused);
+element('buildUpdateRefresh').addEventListener('click', () => window.location.reload());
 element('timelinePause').addEventListener('click', togglePaused);
 element('themeButton').addEventListener('click', () => {
   document.body.classList.toggle('minimal');
@@ -548,18 +570,19 @@ async function resumeLiveView() {
     setConnection('error', 'History refresh failed');
   }
   await Promise.allSettled([loadInstances(), loadSnapshot(), loadLogs(), loadFullLog()]);
+  await checkBuild();
 }
-document.addEventListener('visibilitychange', () => { if (!document.hidden) resumeLiveView(); });
-window.addEventListener('pageshow', resumeLiveView);
-window.addEventListener('focus', resumeLiveView);
+installResumeListeners(document, window, resumeLiveView);
 setupChartInteractions();
 setupSeriesToggles();
 setupZoomControls();
 applyColorMode(loadColorMode());
 element('timezoneSelect').options[0].textContent = `Browser local (${localTimezone()})`;
 await loadInstances();
+await checkBuild();
 await loadSnapshot();
 setInterval(loadSnapshot, 1000);
 setInterval(loadLogs, 5000);
 setInterval(loadFullLog, 5000);
 setInterval(loadInstances, 15000);
+setInterval(checkBuild, 30000);
