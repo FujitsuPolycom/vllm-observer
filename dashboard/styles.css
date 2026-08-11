@@ -197,12 +197,12 @@ h3 { margin: 0; font-size: 14px; }
 .compact-disclosure-grid > .section:has(.collapsible-section[open]) { grid-column: 1 / -1; }
 .collapsible-section > summary.section-heading {
   min-height: 0;
-  padding: 10px 14px;
+  padding: 6px 12px;
   margin-bottom: 0;
   list-style: none;
   cursor: pointer;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 6px;
   background: var(--panel);
   align-items: center;
   transition: border-color 0.15s, background 0.15s;
@@ -232,6 +232,9 @@ h3 { margin: 0; font-size: 14px; }
   font-size: 9px;
   text-overflow: ellipsis;
 }
+/* Compact collapsed headers — hide eyebrow, shrink title */
+.collapsible-section > summary.section-heading .eyebrow { display: none; }
+.collapsible-section > summary.section-heading h2 { font-size: 14px; line-height: 1.2; }
 .collapsible-section > summary.section-heading::-webkit-details-marker { display: none; }
 .collapsible-section > summary.section-heading::after {
   content: "";
