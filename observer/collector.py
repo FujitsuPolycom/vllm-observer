@@ -16,7 +16,7 @@ from .config import env_bool, env_int
 ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 SECRET_RE = re.compile(r"(?i)(bearer\s+|(?:api[_-]?key|token|password|secret)\s*[=:]\s*)\S+")
 IDENT_RE = re.compile(r"^[a-zA-Z0-9_.-]{1,128}$")
-VLLM_TERMS = ("vllm", "sglang", "triton", "serve-glm", "glm52", "deepseek", "llama-server")
+VLLM_TERMS = ("vllm", "sglang", "triton", "serve-glm", "glm52", "deepseek", "llama-server", "tgi", "text-generation", "ollama", "lmcache", "lmdeploy", "tensorrt-llm", "trtllm", "qwen", "sparkring")
 
 
 def clean(line: str) -> str:
